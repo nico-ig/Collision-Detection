@@ -1,0 +1,238 @@
+\documentclass[10pt]{IEEEtran}
+\usepackage[portuguese]{babel}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{bookmark}
+
+\title{EDA - Collision Avoidance Challenge}
+\author{
+    \IEEEauthorblockN{Nico I. G. Ramos}
+    \IEEEauthorblockA{
+        GRR20210574\\
+    }
+}
+\date{\today}
+\begin{document}
+\sloppy
+\maketitle
+
+\section{Introdução}
+
+Foi desafiador realizar uma análise exploratória de dados (EDA) no dataset escolhido para o projeto, de detecção de risco de colisão espacial, devido à sua complexidade e ao grande volume de dados. O conjunto de treino consiste em $162634$ registros com $103$ características cada. A alta variedade de características, em conjunto com a falta de conhecimento prévio sobre o domínio, dificultou a identificação de padrões, relações e insights relevantes. 
+
+O processo de EDA foi mais um processo iterativo de limpeza e redução de dimensionalidade considerando os insights parciais obtidos, do que uma análise direta dos dados. Esse processo foi necessário por conta da alta dimensionalidade do dataset, que dificultava a visualização e compreensão dos dados.
+
+O relatório está organizado da seguinte forma:
+
+\begin{itemize}
+    \item Primeiras linhas do dataset original e do dataset final;
+    \item Descrição da preparação e da limpeza dos dados pré-análise;
+    \item Etapas de redução de dimensionalidade considerando a dispersão e a correlação entre as features;
+    \item Estatísticas descritivas do dataset;
+    \item Insights;
+    \item Divisão do dataset em treino, validação e teste.
+    \item Apêndice com o significado das colunas mencionadas.
+\end{itemize}
+  
+\subsection{Visualização das Primeiras Linhas do Dataset}
+
+As primeiras linhas do dataset original são apresentadas na Tabela \ref{tab:first-lines}, como ela possui muitas colunas, apenas uma parte delas é mostrada como exemplo. por conta disso, não foi possível tirar insights relevantes a partir dessa visualização preliminar.
+
+\input{../tables-final/first_lines.tex}
+
+\section{Preparação e Limpeza de Dados}
+
+O objetivo da preparação e limpeza de dados foi reduzir a dimensionalidade do dataset, para começar a análise com um conjunto de dados mais manejável e compreensível.
+
+O primeiro passo foi tentar identificar colunas que pudessem ser descartadas logo no início, como identificadores ou colunas com valores constantes ou pouco relevantes para o problema. Contudo, a o dataset praticamente não tem colunas identificadoras, e nenhuma coluna possuia um baixo desvio padrão quando comparado ao valor médio dela. Também foi feita uma rápida pesquisa sobre o significado de algumas das coluna, com a qual foi possível remover algumas que pareciam ter menos relevância inicial para o problema, como os valores já calculados de correlação e aqueles usados pelo algoritmo oficial de detecção de risco. Mesmo assim, não possível eliminar muitas colunas e o dataset permaneceu com uma alta dimensionalidade.
+
+Durante as primeiras iterações, foi escolhido a remoção de colunas não numéricas, a única característica identificada foi a que representa o tipo do objeto espacial (satélite, lixo espacial, etc). Inicialmente, a coluna foi enumerada, mas não foi identificado grande relevância com o risco de colisão e foi optado por removê-la, o que também simplificou o processo de análise.
+
+O desafio da alta dimensionalidade do dataset possui duas causas iniciais: a duplicidade de colunas entre o chaser e o target, são \textit{80} colunas que representam a mesma característica para o chaser e para o target; e a presença de colunas que representam a mesma relação, tanto da perspectiva do target quanto do chaser. Por exemplo, as colunas do apogeu (\ref{col:t-h-apo} e \ref{col:c-h-apo}) e perigeu (\ref{col:t-h-peri} e \ref{col:c-h-peri}), que existem tanto para o chaser quanto para o target; e as colunas de correlação que representam a mesma relação entre velocidade e posição, mas de perspectivas distintas.
+
+A escolha por remover as colunas de correlação foi feita para reduzir a dimensionalidade, dessas \textit{80} colunas, \textit{32} são de correlação entre métricas como velocidade relativa, posição, etc. A remoção dessas colunas não teve um impacto significativo na análise, já que essas informações podem ser inferidas se necessárias.
+
+\subsection{Filtragem Inicial}
+A filtragem inicial foi alterada iterativamente e experimentalmente ao longo do EDA. Como a reinclusão de colunas já descartadas, alterar o conjunto inicial de colunas descartadas e alteração nos valores de thresholds. A principal mudança entre as iterações foi a quantidade de colunas descartadas, devido a aos valores de thresholds. A mudança nas colunas descartadas inicialmente, no entanto, teve um impacto limitado, indicando que o processo de seleção foi robusto no que tange à importância e relevância percebida das colunas. Apesar de ter reduzido o dataset para \textit{41} colunas, ainda não possível identificar padrões claros e relações relevantes entre as variáveis.
+
+A Figura \ref{fig:final-correlation-with-risk-no-filtering} mostra a correlação das colunas selecionadas ao final de todas as etapas com a variável alvo, usando o dataset original.
+
+\input{../figures-final/final-correlation_with_risk_no_filtering.tex}
+
+A Figura \ref{fig:final-correlation-with-risk-with-filtering} mostra a correlação com a variável alvo, mas realizando a filtragem inicial.
+
+\input{../figures-final/final-correlation_with_risk_with_filtering.tex}
+
+É possível observar que o impacto da filtragem inicial no conjunto final de colunas foi a remoção de sete colunas, a adição de uma, e a manutenção de quatro.
+
+As sete colunas removidas foram:
+
+\begin{itemize}
+  \item \textit{t\_crdot\_t} (\ref{col:t-crdot-t}),
+  \item \textit{t\_sigma\_r} (\ref{col:t-sigma-r}),
+  \item \textit{max\_risk\_estimate} (\ref{col:max-risk-estimate}),
+  \item \textit{c\_ctdot\_r} (\ref{col:c-ctdot-r}),
+  \item \textit{t\_cn\_r} (\ref{col:t-cn-r}),
+  \item \textit{t\_j2k\_inc} (\ref{col:t-j2k-inc}),
+  \item \textit{t\_sigma\_n} (\ref{col:t-sigma-n})
+\end{itemize}
+
+\medskip
+
+A coluna incluida foi:
+
+\begin{itemize}
+ \item \textit{t\_j2k\_sma} (\ref{col:t-j2k-sma})
+\end{itemize}
+
+\medskip
+
+E as quatro colunas mantidas foram:
+
+\begin{itemize}
+  \item \textit{time\_to\_tca} (\ref{col:time-to-tca}),
+  \item \textit{mahalanobis\_distance} (\ref{col:mahalanobis-distance}),
+  \item \textit{miss\_distance} (\ref{col:miss-distance}) e
+  \item \textit{c\_cd\_area\_over\_mass} (\ref{col:c-cd-area-over-mass}).
+\end{itemize}
+
+\subsection{Tratamento de Valores Ausentes e Infinitos}
+
+O passo seguinte foi tratar os valores ausentes (NaN) e infinitos (+inf e -inf) no dataset original, para que eles não atrapalhassem a análise subsequente. 
+
+A Figura \ref{fig:missing-values-no-filtering} mostra a porcentagem de valores ausentes em cada coluna numérica do dataset original.
+
+\input{../figures-final/missing_values_no_filtering.tex}
+
+A Figura \ref{fig:missing-values-with-filtering} mostra a porcentagem de valores ausentes em cada coluna numérica do dataset filtrado. É possível observar que a porcentagem de valores se divide em três grupos principais:
+
+\begin{itemize}
+    \item \textit{Trinta e quatro} colunas sem valores ausentes (não mostradas na figura);
+    \item \textit{Três} colunas com $0.007\%$ de valores ausentes;
+    \item \textit{Quatro} colunas com $4.195\%$ de valores ausentes;
+\end{itemize}
+
+\input{../figures-final/missing_values_with_filtering.tex}
+
+A escolha da estratégia para remover os valores ausentes considerou que: para o grupo com $0.007\%$, a quantidade é muito baixa;  e, para o grupo com $4.195\%$, as colunas são valores que descrevem caracteristicas solares no momento da observação, e que provavelmente não seriam usados na série temporal de qualquer forma. Com isso, a escolha foi por uma abordagem simples, sem maiores análises, substituindo os valores ausentes pela média da coluna.
+
+Não foram encontrados valores infinitos para o positivo ou para o negativo no dataset.
+
+\subsection{Tratamento de Outliers}
+%Perform Standard Scaler transformation and capping (for values above and below the upper and lower thresholds).
+%O método IQR (Intervalo Interquartil) foi usado para identificar outliers.
+%O capping (clip) foi aplicado para limitar os outliers dentro de um intervalo definido, 
+
+\section{Redução de Dimensionalidade}
+%Esta seção deve focar na eficácia da seleção de variáveis.
+
+\subsection{Remoção por Baixa Quantidade de Valores Únicos}
+%Display unique values percentage and remove columns with unique values percentage lower than a threshold.
+
+\subsection{Remoção por Baixa Dispersão}
+%(df.std() / (df.max() - df.min())) * 100 <= threshold
+%Colunas com baixa variação foram removidas, eliminando features que não
+%apresentavam poder de distinção entre as observações.
+
+\subsection{Remoção por Multicolinearidade (Alta Correlação)}
+%Colunas com alta correlação (acima de um THRESHOLD) foram removidas para mitigar
+%o problema de multicolinearidade, assegurando a estabilidade do modelo.
+%O Heatmap de Correlação final (Página 16) confirma a redução de variáveis com correlações excessivamente altas.
+
+%Colunas com alta correlação (acima de um THRESHOLD) foram removidas para mitigar
+%o problema de multicolinearidade, assegurando a estabilidade do modelo.
+
+\subsection{Remoção por Baixa Correlação com o Alvo (Risk)}
+%Colunas com correlação absoluta muito baixa (abaixo de um THRESHOLD)
+%com a variável alvo risk foram descartadas para otimizar o modelo.
+
+\subsection{Remoção por Correlação Similar ao Alvo (Risk)}
+%Houve também uma etapa de remoção de colunas com correlação similar ao alvo 
+%(abaixo de um TOLERANCE_THRESHOLD) para eliminar redundância preditiva.
+
+\section{Estatísticas Descritivas do Dataset}
+%Antes e após o processamento.
+
+\section{Insights}
+\subsection{Análise das Colunas Selecionadas}
+%transformar isso em parágrafo, não em lista.
+
+Insights sobre as colunas removidas: (\ref{fig:final-correlation-with-risk-with-filtering}, \ref{fig:missing-values-no-filtering})
+
+\begin{itemize}
+  \item \textit{t\_crdot\_t} (\ref{col:t-crdot-t}): grande quantidade de valores faltantes  e pode ser inferida a partir de outras colunas mais confiáveis;
+  \item \textit{t\_sigma\_r} (\ref{col:t-sigma-r}): representa a incerteza na posição radial do target, que é uma métrica derivada e pode não ser tão relevante quanto as características primárias do chaser e do target;
+  \item \textit{max\_risk\_estimate} (\ref{col:max-risk-estimate}): deveria ser removida de qualquer forma, pois ela representa o valor calculado pelo algoritmo oficial de detecção de risco, que é o que estamos tentando prever. Incluir essa coluna no modelo poderia levar a um vazamento de dados, onde o modelo aprende a prever o risco com base em uma variável que já contém essa informação;
+  \item \textit{c\_ctdot\_r} (\ref{col:c-ctdot-r}): também possui possui uma alta quantidade de valores faltantes e possui uma correlação com o risco, de $0.202$ (\ref{fig:final-correlation-with-risk-with-filtering}), próxima da correlação da coluna \textit{miss\_distance} (\ref{col:miss-distance}), de $0.159$, que é mais confiável por não possuir valores ausentes.
+  \item \textit{t\_cn\_r} (\ref{col:t-cn-r}): representa a componente normal da taxa de variação da distância entre o chaser e o target, que também pode ser derivada de outras colunas mais fundamentais;
+  \item \textit{t\_sigma\_n}: foi mantida a coluna \textit{mahalanobis\_distance} (\ref{col:mahalanobis-distance}), que também representa uma medida de incerteza na órbita, e possui uma correlação muito maior com o risco. E a coluna \textit{t\_j2lk\_sma} (\ref{col:t-j2k-sma}) foi inserida, ela possui uma correlação com o risco apenas um pouco menor, de $0.065$ ao invés de $0.067$, e carrega uma informação a mais sobre a órbita do target, que pode ser relevante para a predição da colisão;
+\end{itemize}
+
+Pela Figura \ref{fig:missing-values-no-filtering}, é possível observar que as colunas \textit{t\_crdot\_t} (\ref{col:t-crdot-t}) e \textit{c\_ctdot\_r} (\ref{col:c-ctdot-r}) possuem mais de $5.6\%$ de valores ausentes, o que representa uma alta quantidade de valores ausentes em relação aos outros dados do dataset, ficando atrás apenas da coluna \textit{c\_rcs\_extimate} (\ref{col:c-rcs-extimate}), com mais de $30\%$ de valores faltantes.
+
+Insights sobre as colunas mantidas: (\ref{fig:final-correlation-with-risk-with-filtering}, \ref{fig:missing-values-no-filtering})
+
+\begin{itemize}
+    \item \textit{time\_to\_tca} (\ref{col:time-to-tca}): essêncial pois forma a série temporal dos eventos;
+    \item \textit{mahalanobis\_distance} (\ref{col:mahalanobis-distance}): é a coluna com a maior correlação com o risco, de $0.478$. Permite medir a incerteza da órbita, a confiabilidade dos dados. E evita redundância entre as caracterísitcas, pois possibilita a remoção de outras colunas de incerteza;
+    \item \textit{miss\_distance} (\ref{col:miss-distance}): é uma métrica direta da proximidade entre os dois objetos espaciais na aproximação máxima. Uma menor distância de aproximação está diretamente relacionada a um maior risco de colisão, tornando essa coluna essencial para a análise. Também possui uma correlação significativa com o risco, de $0.159$ e auxilia a observar a órbita dos objetos.
+    \item \textit{c\_cd\_area\_over\_mass} (\ref{col:c-cd-area-over-mass}): o coeficiente balístico do chaser influencia sua resistência ao arrasto atmosférico, afetando sua trajetória orbital. Apesar de sua correlação moderada com o risco, de $0.122$ e de não variar ao longo do tempo (eventos da série temporal), fornece insights sobre como as características físicas do chaser impactam o risco de colisão.
+    \item \textit{c\_j2k\_sma} (\ref{col:c-j2k-sma}) e \textit{t\_j2k\_inc} (\ref{col:t-j2k-inc}): representam elementos da órbita do chaser e do target, respectivamente. Essas colunas possuem correlações menores com o risco, de $0.065$ e $-0.049$, mas podem ser importantes para entender a dinâmica orbital dos objetos.
+\end{itemize}
+
+As colunas mantidas encapsulam aspectos relevantes para a predição do risco de colisão. A coluna \textit{mahalanobis\_distance} (\ref{col:mahalanobis-distance}) captura a incerteza sobre a órbita, caracterizada pelas colunas \textit{c\_j2k\_sma} (\ref{col:c-j2k-sma}), \textit{t\_j2k\_inc} (\ref{col:t-j2k-inc}), e {c\_cd\_area\_over\_mass} (\ref{col:c-cd-area-over-mass}), enquanto a coluna \textit{miss\_distance} (\ref{col:miss-distance}) fornece caracteriza a geometria da aproximação. A série temporal, representada pela coluna \textit{time\_to\_tca} (\ref{col:time-to-tca}), une essas características, permitindo a análise da evolução do risco ao longo do tempo sob três aspectos principais: a órbita dos objetos envolvidos, a incerteza dela, e a geometria da aproximação.
+
+\subsection{Análise da Correlação das Variáveis com o Risco}
+%olhar os heatmaps antes e depois do processamento\textit{miss\_distance} (\ref{col:miss-distance}) 
+%falar na incerteza por ocnta do ambiente espacial (radiação, distancia, etc). Como uma incerteza grande e uma distancia pequena aumentam o risco. E como uma incerteza maior a uma mesma distancia aumenta o risco. (Incerteza alta -> como se fosse um cilindro largo (órbita e tamanho), incerteza baixa -> como se fosse um cilindro fino (órbita e tamanho)). Ou, no momento final (2 dias antes do envento), um plano vs um ponto.
+%discutir o heatmap
+
+\subsection{Análise dos Padrões Temporais (Time-Series)}
+%Esta é a parte mais rica em insights de domínio, focando na dinâmica dos eventos.
+
+%\subsection{Comportamento do Risco (risk)}
+%O gráfico de evolução do risk (Página 34) mostra que, para alguns eventos
+%(e.g., Evento 442), o risco cai rapidamente para o mínimo (≈−30) à medida que o time_to_tca diminui,
+%indicando que o potencial de colisão foi rapidamente resolvido ou a incerteza diminuída.
+%Outros eventos (e.g., Evento 362) mantêm um risco elevado (mais próximo de -5) por mais tempo, exigindo mais atenção.
+
+%\subsection{Evolução da Incerteza (mahalanobis_distance)}
+%Para a maioria dos eventos, a mahalanobis_distance (incerteza do Conjunction Data Message - CDM)
+%tende a aumentar à medida que o tempo para o TCA diminui (de 7 para 2 dias), indicando que as informações
+%mais próximas do evento de colisão tendem a ser mais divergentes ou incertas.
+
+%analisar a quantidade de eventos por quantidade de obsercaoes (contar linhas por evento id) e o tempo entre a ultima observacao e o tca
+%estratificar por faixa de risco (alto, medio, baixo)
+
+\section{Divisão do Dataset em Treino, Validação e Teste}
+%tentar distribuicao parecida entre os conjuntos, separar por evento id para evitar vazamento de dados
+
+\newpage
+\appendices
+\section{Significado das Colunas Mencionadas}
+
+\begin{enumerate}
+    \item \textit{t\_crdot\_t}: Correlação entre a velocidade radial e a posição along‑track do target. \label{col:t-crdot-t}
+    \item \textit{t\_sigma\_r}: Incerteza (desvio padrão) na posição radial do target. \label{col:t-sigma-r}
+    \item \textit{max\_risk\_estimate}: Estimativa máxima de risco calculada pelo algoritmo oficial de detecção de risco. \label{col:max-risk-estimate}
+    \item \textit{c\_ctdot\_r}: Correlação entre a velocidade along‑track e a posição radial do chaser. \label{col:c-ctdot-r}
+    \item \textit{t\_cn\_r}: Componente normal da taxa de variação da distância entre o chaser e o target. \label{col:t-cn-r}
+    \item \textit{t\_sigma\_n}: Incerteza (desvio padrão) na posição normal do target. \label{col:t-sigma-n}
+    \item \textit{time\_to\_tca}: Tempo até a aproximação máxima entre o chaser e o target. \label{col:time-to-tca}
+    \item \textit{mahalanobis\_distance}: Medida de incerteza da órbita, indicando a confiabilidade dos dados. \label{col:mahalanobis-distance}
+    \item \textit{miss\_distance}: Distância mínima prevista entre o chaser e o target na aproximação máxima. \label{col:miss-distance}
+    \item \textit{c\_cd\_area\_over\_mass}: Coeficiênte balístico do chaser, relacionado à resistência ao arrasto atmosférico. \label{col:c-cd-area-over-mass}
+    \item \textit{c\_j2k\_sma}: Semi-eixo maior da órbita do chaser. \label{col:c-j2k-sma}
+    \item \textit{t\_j2k\_inc}: Inclinação da órbita do target. \label{col:t-j2k-inc}
+    \item \textit{t\_j2k\_sma}: Semi-eixo maior da órbita do target. \label{col:t-j2k-sma}
+    \item \textit{t\_h\_apo}: Ponto mais distante da órbita do target em relação à Terra. \label{col:t-h-apo}
+    \item \textit{c\_h\_apo}: Ponto mais próximo da órbita do chaser em relação à Terra. \label{col:c-h-apo}
+    \item \textit{t\_h\_peri}: Ponto mais próximo da órbita do target em relação à Terra. \label{col:t-h-peri}
+    \item \textit{c\_h\_peri}: Ponto mais próximo da órbita do chaser em relação à Terra. \label{col:c-h-peri}
+    \item \textit{c\_rcs\_extimate}: Estimativa da seção transversal do radar do chaser. \label{col:c-rcs-extimate}
+\end{enumerate}
+
+\end{document}
+
+%verificar slide com os passos do eda e ver se faltou discutir algo (que eu fiz!!)

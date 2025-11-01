@@ -1,0 +1,435 @@
+columns:
+  collision:
+    geometry:
+      azimuth:
+        description: azimuth angle of the relative velocity vector [deg]
+        kept: false
+        reason: low correlation with risk, 0.008 <= 0.050
+        timeseries_plot: false
+      elevation:
+        description: elevation angle of the relative velocity vector [deg]
+        kept: false
+        reason: low variance (std), 1.712 <= 5.000
+        timeseries_plot: true
+      geocentric_latitude:
+        description: geocentric latitude of the point of closest approach [deg]
+        kept: false
+        reason: low correlation with risk, 0.016 <= 0.050
+        timeseries_plot: true
+      position:
+        relative_position_n:
+          description: normal (cross-track) [m]
+          kept: false
+          reason: low correlation with risk, 0.005 <= 0.050
+          timeseries_plot: true
+        relative_position_r:
+          description: radial [m]
+          kept: false
+          reason: low correlation with risk, 0.031 <= 0.050
+          timeseries_plot: true
+        relative_position_t:
+          description: transverse (along-track) [m]
+          kept: false
+          reason: low correlation with risk, 0.004 <= 0.050
+          timeseries_plot: true
+      relative_speed:
+        description: relative speed between the chaser and the target at the time
+          of closest approach [m/s]
+        kept: false
+        reason: similar risk correlation (0.060) with column t_j2k_sma (0.065)
+        timeseries_plot: false
+      time_to_tca:
+        description: time interval between the creation of the CDM and the time of
+          closest approach [days]
+        kept: true
+      velocity:
+        relative_velocity_n:
+          description: normal (cross-track) [m/s]
+          kept: false
+          reason: low correlation with risk, 0.004 <= 0.050
+          timeseries_plot: true
+        relative_velocity_r:
+          description: radial [m/s]
+          kept: false
+          reason: low unique values, 0.012 <= 0.050
+          timeseries_plot: true
+        relative_velocity_t:
+          description: transverse (along-track) [m/s]
+          kept: false
+          reason: multicoliniarity with column relative_speed (0.978)
+          timeseries_plot: true
+    mahalanobis_distance:
+      description: ''
+      timeseries_plot: true
+    max_risk_estimate:
+      description: maximum risk estimate
+      kept: false
+    max_risk_scaling:
+      description: maximum risk scaling used to calculate the maximum risk estimate
+      kept: false
+    miss_distance:
+      description: ''
+      timeseries_plot: true
+    risk:
+      description: value to be predicted
+      kept: true
+      timeseries_plot: true
+  metadata:
+    c_object_type:
+      description: type of object at risk of collision
+      kept: false
+    event_id:
+      description: collision identifier
+      kept: true
+    mission_id:
+      description: mission identifier
+      kept: false
+  object:
+    orbit:
+      chaser:
+        c_h_apo:
+          description: apogee [km]
+          kept: false
+          reason: multicoliniarity with column t_j2k_sma (0.994)
+          timeseries_plot: false
+        c_h_per:
+          description: perigee [km]
+          kept: false
+          reason: low correlation with risk, 0.045 <= 0.050
+          timeseries_plot: true
+        c_j2k_ecc:
+          description: eccentricity
+          kept: false
+          reason: similar risk correlation (0.071) with column t_j2k_inc (0.077)
+          timeseries_plot: false
+        c_j2k_inc:
+          description: inclination [deg]
+          kept: false
+          reason: low correlation with risk, 0.011 <= 0.050
+          timeseries_plot: false
+        c_j2k_sma:
+          description: semi-major axis [km]
+          timeseries_plot: false
+      metrics:
+        chaser:
+          c_actual_od_span:
+            description: actual interval of orbit determination [days]
+            timeseries_plot: false
+          c_recommended_od_span:
+            description: recommended interval of orbit determination [days]
+            kept: false
+            timeseries_plot: false
+          c_residuals_accepted:
+            description: accepted residuals
+            kept: false
+            timeseries_plot: false
+          c_weighted_rms:
+            description: weighted root mean square
+            timeseries_plot: true
+        target:
+          t_actual_od_span:
+            description: actual interval of orbit determination [days]
+            kept: false
+            reason: low unique values, 0.015 <= 0.050
+            timeseries_plot: false
+          t_recommended_od_span:
+            description: recommended interval of orbit determination [days]
+            kept: false
+            timeseries_plot: false
+          t_residuals_accepted:
+            description: accepted residuals
+            kept: false
+            timeseries_plot: false
+          t_weighted_rms:
+            description: weighted root mean square
+            kept: false
+            reason: low unique values, 0.005 <= 0.050
+            timeseries_plot: true
+      observation:
+        chaser:
+          c_obs_available:
+            description: number of observations available for orbit determination
+              (per CDM)
+            timeseries_plot: false
+          c_obs_used:
+            description: number of observations used for orbit determination (per
+              CDM)
+            kept: false
+            timeseries_plot: false
+          c_time_lastob_end:
+            description: end of the time interval in days (with respect to the CDM
+              creation epoch) of the last accepted observation used in the orbit determination
+            kept: false
+            timeseries_plot: true
+          c_time_lastob_start:
+            description: start of the time in days (with respect to the CDM creation
+              epoch) of the last accepted observation used in the orbit determination
+            kept: false
+            timeseries_plot: true
+        target:
+          t_obs_available:
+            description: number of observations available for orbit determination
+              (per CDM)
+            kept: false
+            reason: low unique values, 0.005 <= 0.050
+            timeseries_plot: false
+          t_obs_used:
+            description: number of observations used for orbit determination (per
+              CDM)
+            kept: false
+            timeseries_plot: false
+          t_time_lastob_end:
+            description: end of the time interval in days (with respect to the CDM
+              creation epoch) of the last accepted observation used in the orbit determination
+            kept: false
+            timeseries_plot: true
+          t_time_lastob_start:
+            description: start of the time in days (with respect to the CDM creation
+              epoch) of the last accepted observation used in the orbit determination
+            kept: false
+            timeseries_plot: true
+      target:
+        t_h_apo:
+          description: apogee [km]
+          kept: false
+          reason: multicoliniarity with column t_j2k_sma (0.994)
+          timeseries_plot: false
+        t_h_per:
+          description: perigee [km]
+          kept: false
+          reason: multicoliniarity with column t_j2k_sma (0.995)
+          timeseries_plot: true
+        t_j2k_ecc:
+          description: eccentricity
+          kept: false
+          reason: similar risk correlation (0.071) with column t_j2k_inc (0.077)
+          timeseries_plot: false
+        t_j2k_inc:
+          description: inclination [deg]
+          timeseries_plot: false
+        t_j2k_sma:
+          description: semi-major axis [km]
+          timeseries_plot: false
+    physical_properties:
+      chaser:
+        c_cd_area_over_mass:
+          description: ballistic coefficient [m2m2/kg]
+          kept: false
+          reason: similar risk correlation (0.064) with column t_j2k_sma (0.065)
+          timeseries_plot: false
+        c_cr_area_over_mass:
+          description: ''
+          kept: false
+          reason: similar risk correlation (0.154) with column miss_distance (0.159)
+          timeseries_plot: false
+        c_rcs_estimate:
+          description: radar cross-sectional area [m2m2]
+          kept: false
+          timeseries_plot: false
+        c_sedr:
+          description: energy dissipation rate [W/kg]
+          timeseries_plot: false
+        c_span:
+          description: size used by the collision risk calculation algorithm (minimum
+            diameter of 2 m assumed for the chaser) [m]
+          kept: false
+      target:
+        t_cd_area_over_mass:
+          description: ballistic coefficient [m2m2/kg]
+          kept: false
+          reason: similar risk correlation (0.064) with column t_j2k_sma (0.065)
+          timeseries_plot: false
+        t_cr_area_over_mass:
+          description: ''
+          kept: false
+          reason: similar risk correlation (0.154) with column miss_distance (0.159)
+          timeseries_plot: false
+        t_rcs_estimate:
+          description: radar cross-sectional area [m2m2]
+          kept: false
+          reason: low unique values, 0.007 <= 0.050
+          timeseries_plot: false
+        t_sedr:
+          description: energy dissipation rate [W/kg]
+          kept: false
+          reason: low variance (std), 4.660 <= 5.000
+          timeseries_plot: false
+        t_span:
+          description: size used by the collision risk calculation algorithm (minimum
+            diameter of 2 m assumed for the chaser) [m]
+          kept: false
+    position:
+      correlation:
+        chaser:
+          c_cn_r:
+            description: cross-track position vs radial position
+            kept: false
+          c_cn_t:
+            description: cross-track position vs along-track position
+            kept: false
+          c_ct_r:
+            description: along-track position vs radial position
+            kept: false
+        target:
+          t_cn_r:
+            description: cross-track position vs radial position
+            kept: false
+          t_cn_t:
+            description: cross-track position vs along-track position
+            kept: false
+          t_ct_r:
+            description: along-track position vs radial position
+            kept: false
+      determinant:
+        chaser:
+          c_position_covariance_det:
+            description: covariance determinant (~volume)
+            kept: false
+        target:
+          t_position_covariance_det:
+            description: covariance determinant (~volume)
+            kept: false
+      sigma:
+        chaser:
+          c_sigma_n:
+            description: cross-track position [m]
+            kept: false
+          c_sigma_r:
+            description: radial position [m]
+            kept: false
+          c_sigma_t:
+            description: along-track position [m]
+            kept: false
+        target:
+          t_sigma_n:
+            description: cross-track position [m]
+            kept: false
+          t_sigma_r:
+            description: radial position [m]
+            kept: false
+          t_sigma_t:
+            description: along-track position [m]
+            kept: false
+    velocity:
+      correlation:
+        chaser:
+          c_cndot_rdot:
+            description: cross-track velocity vs radial velocity
+            kept: false
+          c_cndot_tdot:
+            description: along-track velocity vs cross-track velocity
+            kept: false
+          c_ctdot_rdot:
+            description: along-track velocity vs radial velocity
+            kept: false
+        target:
+          t_cndot_rdot:
+            description: cross-track velocity vs radial velocity
+            kept: false
+          t_cndot_tdot:
+            description: along-track velocity vs cross-track velocity
+            kept: false
+          t_ctdot_rdot:
+            description: along-track velocity vs radial velocity
+            kept: false
+      sigma:
+        chaser:
+          c_sigma_ndot:
+            description: cross-track velocity [m/s]
+            kept: false
+          c_sigma_rdot:
+            description: radial velocity [m/s]
+            kept: false
+          c_sigma_tdot:
+            description: along-track velocity [m/s]
+            kept: false
+        target:
+          t_sigma_ndot:
+            description: cross-track velocity [m/s]
+            kept: false
+          t_sigma_rdot:
+            description: radial velocity [m/s]
+            kept: false
+          t_sigma_tdot:
+            description: along-track velocity [m/s]
+            kept: false
+    velocity_position:
+      correlation:
+        chaser:
+          c_cndot_n:
+            description: cross-track velocity vs cross-track position
+            kept: false
+          c_cndot_r:
+            description: cross-track velocity vs radial position
+            kept: false
+          c_cndot_t:
+            description: cross-track velocity vs along-track position
+            kept: false
+          c_crdot_n:
+            description: ''
+            kept: false
+          c_crdot_r:
+            description: ''
+            kept: false
+          c_crdot_t:
+            description: ''
+            kept: false
+          c_ctdot_n:
+            description: ''
+            kept: false
+          c_ctdot_r:
+            description: along-track velocity vs radial position
+            kept: false
+          c_ctdot_t:
+            description: along-track velocity vs along-track position
+            kept: false
+        target:
+          t_cndot_n:
+            description: cross-track velocity vs cross-track position
+            kept: false
+          t_cndot_r:
+            description: cross-track velocity vs radial position
+            kept: false
+          t_cndot_t:
+            description: cross-track velocity vs along-track position
+            kept: false
+          t_crdot_n:
+            description: ''
+            kept: false
+          t_crdot_r:
+            description: ''
+            kept: false
+          t_crdot_t:
+            description: ''
+            kept: false
+          t_ctdot_n:
+            description: ''
+            kept: false
+          t_ctdot_r:
+            description: along-track velocity vs radial position
+            kept: false
+          t_ctdot_t:
+            description: along-track velocity vs along-track position
+            kept: false
+  solar_activity:
+    AP:
+      description: daily planetary geomagnetic amplitude index
+      kept: false
+      reason: low unique values, 0.000 <= 0.050
+      timeseries_plot: true
+    F10:
+      description: "10.7 cm radio flux index [10\u22122210\u221222 W/(m2m2 Hz)]"
+      kept: false
+      reason: low unique values, 0.001 <= 0.050
+      timeseries_plot: true
+    F3M:
+      description: "81-day running mean of F10.7 (over 3 solar rotations) [10\u2212\
+        2210\u221222 W/(m2m2 Hz)]"
+      kept: false
+      reason: low unique values, 0.000 <= 0.050
+      timeseries_plot: true
+    SSN:
+      description: Wolf sunspot number
+      kept: false
+      reason: low unique values, 0.000 <= 0.050
+      timeseries_plot: true

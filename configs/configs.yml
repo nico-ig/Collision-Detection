@@ -1,0 +1,14 @@
+high_correlation_threshold: 0.95
+low_risk_correlation_threshold: 0.05
+similar_risk_correlation_threshold: 0.01
+low_unique_values_percent_threshold: 0.05
+low_variance_percent_threshold: 0.05
+iqr_factor: 1.5
+lower_bound_outliers_capping: 0.0
+upper_bound_outliers_capping: 10.0
+n_events_to_plot: 10
+first_event_to_plot: 0
+min_entries_threshold: 15
+
+
+
