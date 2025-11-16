@@ -17,8 +17,11 @@ def eda(file):
     print_header("Iniciando EDA")
 
     set_global_options()
-    df = load_data(file)
-    
+    df = load_data(file, convert_time_to_tca=False)
+    df = df.reset_index()
+    df['time_to_tca'] = pd.to_timedelta(df['time_to_tca'], unit='d')
+    df = df.set_index(['event_id', 'time_to_tca'])
+    df = df.sort_index(ascending=[True, False])
     print_dataset_characteristics(df)
     print_data_quality(df)
     print_events_characteristics(df)
@@ -45,7 +48,7 @@ def print_dataset_characteristics(df):
     }, index=df.dtypes.index)
     display(var_types)
 
-    print_descriptive_stats(df.drop(columns=['event_id']), "Dataset")
+    print_descriptive_stats(df, "Dataset")
 
 def print_data_quality(df):
     print_header("Qualidade dos dados")
@@ -68,7 +71,7 @@ def print_events_characteristics(df):
     print_header("Características dos eventos")
 
     print_section("Quantidade de eventos")
-    print(f"Total de eventos: {df['event_id'].nunique()}")
+    print(f"Total de eventos: {df.index.get_level_values('event_id').nunique()}")
 
     event_sizes = df.groupby('event_id').size()
     print_section("Quantidade de observações por quantidade de eventos")    
@@ -161,7 +164,7 @@ def print_risk_transitions(df):
 
 def prepare_daily_data(df):
     daily_df = df.copy()
-    daily_df['date'] = daily_df.index.round('d')
+    daily_df['date'] = daily_df.index.get_level_values('time_to_tca').round('d')
     daily_df['risk_state'] = np.where(daily_df['risk'] >= get_high_risk_threshold(), 'high', 'low')
     return daily_df
 
@@ -240,7 +243,7 @@ def print_time_diff(df):
     diffs = []
     for _, group in df.groupby('event_id'):
         if len(group) > 1:
-            event_diffs = group.index.to_series().diff().dropna()
+            event_diffs = group.index.get_level_values('time_to_tca').to_series().diff().dropna()
             diffs.extend(event_diffs)
     
     diffs_series = pd.Series(diffs)
@@ -249,14 +252,15 @@ def print_time_diff(df):
 def get_time_stats(df):
     time_stats = []
     for event_id, group in df.groupby('event_id'):
-        times = group.index.sort_values(ascending=False)
+        times = group.index.get_level_values('time_to_tca').sort_values(ascending=False)
         time_stats.append({
             'event_id': event_id,
             'first': times[0],
             'last': times[-1] if len(times) > 1 else None,
             'penultimate': times[-2] if len(times) > 1 else None
         })
-    return pd.DataFrame(time_stats).dropna()
+    stats_df = pd.DataFrame(time_stats).dropna()
+    return stats_df
         
 def print_time_stats(time_stats_df):
     print_datetime_descriptive_stats(time_stats_df['first'], "Primeiro time_to_tca por evento")
@@ -298,6 +302,7 @@ def print_datetime_descriptive_stats(values, section_name):
 def print_constant_values(df):
     print_header("Valores Constantes")
     print_section("Valores constantes por evento")
+    df = df.reset_index().set_index('time_to_tca')
     results = {col: 0 for col in df.columns if col != 'event_id'}
     detector = tsod.ConstantValueDetector(window_size=3, threshold=3)
     for _, group in df.groupby('event_id'):
@@ -346,9 +351,8 @@ def print_correlation(df):
     
 def print_daily_risk_correlations(df):
     filtered_df = df.copy()
-    filtered_df = filtered_df.drop(columns=['event_id'])
+    filtered_df = filtered_df.reset_index().set_index('time_to_tca')
     filtered_df.index = filtered_df.index.round('d')
-    
     risk_correlations = pd.DataFrame()
     for day, group in filtered_df.groupby(filtered_df.index):
         corr_matrix = group.corr()
