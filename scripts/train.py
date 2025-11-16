@@ -25,8 +25,8 @@ def fit_models(input_file, output_dir):
     df = load_data(input_file)
 
     scaler = TimeSeriesScalerMeanVariance()
-    save_models({"scaler": scaler}, os.path.join(output_dir, "scaler.pkl"))
     df = normalize_df(df, scaler)
+    save_models({"scaler": scaler}, os.path.join(output_dir, "scaler.pkl"))
     print_descriptive_stats(df, "Dataset normalizado")
 
     km = TimeSeriesKMeans(
@@ -35,9 +35,10 @@ def fit_models(input_file, output_dir):
         random_state=get_seed(),
         max_iter=get_max_iter(),
         n_jobs=-1,
+        verbose=True,
     )
-    save_models({"km": km}, os.path.join(output_dir, "km.pkl"))
     df = get_clusters(df, km)
+    save_models({"km": km}, os.path.join(output_dir, "km.pkl"))
 
     print_action("Removendo event_id e atualizando index (cluster, time_to_tca)")
     df = df.reset_index()
