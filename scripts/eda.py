@@ -21,6 +21,7 @@ def eda(file):
     df = df.reset_index()
     df['time_to_tca'] = pd.to_timedelta(df['time_to_tca'], unit='d')
     df = df.set_index(['event_id', 'time_to_tca'])
+    df = df.sort_index(ascending=[True, False])
     print_dataset_characteristics(df)
     print_data_quality(df)
     print_events_characteristics(df)
