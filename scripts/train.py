@@ -29,7 +29,13 @@ def fit_models(input_file, output_dir):
     df = normalize_df(df, scaler)
     print_descriptive_stats(df, "Dataset normalizado")
 
-    km = TimeSeriesKMeans(n_clusters=get_n_clusters(), metric=get_kmeans_metric(), random_state=get_seed(), max_iter=get_max_iter())
+    km = TimeSeriesKMeans(
+        n_clusters=get_n_clusters(),
+        metric=get_kmeans_metric(),
+        random_state=get_seed(),
+        max_iter=get_max_iter(),
+        n_jobs=-1,
+    )
     save_models({"km": km}, os.path.join(output_dir, "km.pkl"))
     df = get_clusters(df, km)
 
@@ -81,9 +87,6 @@ def train_cluster_models(cluster):
     print_action("Removendo cluster")
     cluster = cluster.drop(columns=['cluster'])
     models = train_models(cluster)
-    models = {
-        'models': models,
-    }
     return models
 
 def normalize_cluster_frequency(df):

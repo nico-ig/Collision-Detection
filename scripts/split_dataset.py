@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import pandas as pd
 import argparse
 from pathlib import Path
 
+from utils import get_seed
 from print_dataset_stats import print_dataset_stats
 
 def load_and_prepare_data(csv_path):
@@ -11,22 +12,22 @@ def load_and_prepare_data(csv_path):
     df = pd.read_csv(csv_path).sort_values('time_to_tca', ascending=False)
     return df
 
-def get_near_final_events(events, expected_size):
+def get_near_final_events(events, expected_size, seed):
     """Get events with latest CDM < 2 day to TCA."""
     latest_cdms = events.nth(0)
     ratio = (latest_cdms['time_to_tca'] < 2).mean()
     near_final_cdm = latest_cdms[latest_cdms['time_to_tca'] < 2]
-    near_final_events = near_final_cdm.sample(n=int(expected_size * ratio))
+    near_final_events = near_final_cdm.sample(n=int(expected_size * ratio), random_state=seed)
     return near_final_events
 
-def get_early_events(events, expected_size):
+def get_early_events(events, expected_size, seed):
     second_to_last_cdms = events.nth(1)
     ratio = (second_to_last_cdms['time_to_tca'] >= 2).mean()
     early_enough_cdm = second_to_last_cdms[second_to_last_cdms['time_to_tca'] >= 2]
-    early_events = early_enough_cdm.sample(n=int(expected_size * ratio))
+    early_events = early_enough_cdm.sample(n=int(expected_size * ratio), random_state=seed)
     return early_events
 
-def get_additional_events_ids(df, current_ids, expected_size):
+def get_additional_events_ids(df, current_ids, expected_size, seed):
     """Get additional events to reach the desired validation set size."""
     remaining_size = expected_size - len(current_ids)
     if remaining_size <= 0:
@@ -34,7 +35,7 @@ def get_additional_events_ids(df, current_ids, expected_size):
     
     available_events = df[~df['event_id'].isin(current_ids)]['event_id'].unique()
     sample_size = min(remaining_size, len(available_events))
-    new_events_ids = pd.Series(available_events).sample(n=sample_size)
+    new_events_ids = pd.Series(available_events).sample(n=sample_size, random_state=seed)
     return pd.Index(current_ids).append(pd.Index(new_events_ids))
 
 def print_final_stats(df, train_df, val_df):
@@ -49,17 +50,19 @@ def save_dataset(df, path):
     df.to_csv(path, index=False)
 
 def split_dataset(csv_path, val_percent):
+    seed = get_seed()
+
     csv_path = Path(csv_path)
     df = load_and_prepare_data(csv_path)    
         
     events = df.groupby('event_id', as_index=False)
     val_expected_size = int(len(events) * (val_percent)/100)
 
-    val_near_final = get_near_final_events(events, val_expected_size)
-    val_early = get_early_events(events, val_expected_size)
+    val_near_final = get_near_final_events(events, val_expected_size, seed)
+    val_early = get_early_events(events, val_expected_size, seed)
 
     val_ids = pd.concat([val_near_final, val_early])['event_id'].unique()
-    val_ids = get_additional_events_ids(df, val_ids, val_expected_size)
+    val_ids = get_additional_events_ids(df, val_ids, val_expected_size, seed)
 
     train_df = df[~df['event_id'].isin(val_ids)]
     val_df = df[df['event_id'].isin(val_ids)]
