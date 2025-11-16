@@ -73,7 +73,7 @@ def split_dataset(csv_path, val_percent):
     save_dataset(val_df, dir_path / f'{base_name}_val.csv')
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Split dataset into train and test sets')
+    parser = argparse.ArgumentParser(description='Split dataset into train and validation sets')
     parser.add_argument('-f', '--file', type=str, required=True, help='Path to the CSV file to split')
     parser.add_argument('-p', '--percent', type=int, required=True, choices=range(0, 101), help='Percentage of the dataset to be used for validation')
     args = parser.parse_args()
