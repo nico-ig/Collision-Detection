@@ -33,7 +33,7 @@ def set_global_options():
     pd.set_option('display.width', None)
     pd.set_option('display.max_colwidth', None) 
 
-def load_data(file):
+def load_data(file, convert_time_to_tca=True):
     print_action("Carregando dados")
     df = pd.read_csv(file)
     # events = df['event_id'].unique()[:100]
@@ -44,8 +44,9 @@ def load_data(file):
     df = df[['event_id', 'time_to_tca', 'risk', 'c_time_lastob_end', 'c_time_lastob_start', 'miss_distance', 'relative_position_n', 'c_cd_area_over_mass', 'c_cr_area_over_mass', 'c_sedr', 'c_obs_used', 'c_sigma_t']]
     print_action(f"Dataset final com {len(df)} linhas e {len(df.columns)} colunas")
     
-    max_time_to_tca = df['time_to_tca'].max()
-    df['time_to_tca'] = df['time_to_tca'].apply(lambda x: pd.Timestamp(max_time_to_tca - x, unit='d'))
+    if convert_time_to_tca:
+        max_time_to_tca = df['time_to_tca'].max()
+        df['time_to_tca'] = df['time_to_tca'].apply(lambda x: pd.Timestamp(max_time_to_tca - x, unit='d'))
 
     df = sort_data(df)
 
