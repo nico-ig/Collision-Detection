@@ -48,8 +48,6 @@ db.sqlite3-journal
 
 # Data
 *.csv
-models/
 
 # Report
 figures-final/
-training.log
