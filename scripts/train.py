@@ -60,37 +60,9 @@ def fit_models(input_file, output_dir, n_clusters):
     print_action("Removendo km")
     del km
 
-    print_header("Analisando e Mapeando Risco dos Clusters")
-    
-    max_risk_per_event = df.groupby('event_id')['risk'].max()
-    event_to_cluster_map = df.reset_index()[['event_id', 'cluster']].drop_duplicates().set_index('event_id')
-    cluster_risk_data = max_risk_per_event.to_frame(name='max_risk').join(event_to_cluster_map)
-    cluster_risk_stats = cluster_risk_data.groupby('cluster')['max_risk'].agg(['mean', 'median', 'max', 'count'])
-    
-    print_section("Estatísticas de Risco (baseado no Risco Máx. do Evento) por Cluster:")
-    
-    cluster_risk_mapping = {}
-    for cluster_id, stats in cluster_risk_stats.iterrows():
-        if stats['median'] > get_high_risk_threshold():
-            cluster_risk_mapping[cluster_id] = 'High'
-        else:
-            cluster_risk_mapping[cluster_id] = 'Low/Medium'
-    
-    true_labels = max_risk_per_event.apply(
-        lambda x: 'High' if x > get_high_risk_threshold() else 'Low/Medium'
-    ).rename('true_risk_label')
-
-    df = df.reset_index()
-
-    df['risk_label'] = df['cluster'].map(lambda x: 'High' if cluster_risk_mapping[x] == 'High' else 'Low/Medium')
-    predicted_labels = df.reset_index().drop_duplicates(subset=['event_id'])[
-        ['event_id', 'risk_label']
-    ].set_index('event_id')['risk_label']
-
-    print_section(f"Mapeamento de Risco (Limiar de Média > {get_high_risk_threshold()}):")
-    display(cluster_risk_mapping)
-    
-    print_predict_stats(true_labels, predicted_labels, cluster_risk_mapping)
+    cluster_risk_mapping = classify_clusters(df)
+    true_labels = create_true_labels(df)
+    print_predict_stats(df, cluster_risk_mapping, true_labels)
 
     save_models({"cluster_risk_mapping": cluster_risk_mapping}, output_dir)
     print_action("Mapeamento de risco do cluster salvo.")
@@ -153,8 +125,12 @@ def get_clusters(df, km):
     print_header("Iniciando Clusterização")
     events_series = create_events_series(df)
     y_pred = km.fit_predict(events_series)
+    df = assign_cluster(df, y_pred)
+    return df
+
+def assign_cluster(df, clusters):
     unique_events = df.index.get_level_values('event_id').unique()
-    cluster_mapping = dict(zip(unique_events, y_pred))
+    cluster_mapping = dict(zip(unique_events, clusters))
     df = df.reset_index()
     df['cluster'] = df['event_id'].map(cluster_mapping)
     print_action("Atualizando index (cluster, time_to_tca)")
@@ -171,38 +147,71 @@ def print_clusters_stats(df):
     for cluster, group in df.groupby('cluster'):
         print_descriptive_stats(group, f"Cluster {cluster}")
 
-def print_predict_stats(true_labels, predicted_labels, cluster_risk_mapping):
+def classify_clusters(df):
+    print_header("Classificando Clusters")
+    cluster_risk_mapping = {}
+    for cluster_id, group in df.groupby('cluster'):
+        print_descriptive_stats(group, f"Cluster {cluster_id}")
+        last_events = df.groupby('event_id').tail(3)
+        cluster_risk_mapping[cluster_id] = 'High' if is_cluster_high_risk(last_events) else 'Low/Medium'
+    return cluster_risk_mapping
+
+def is_cluster_high_risk(df):
+    return df['risk'].quantile(0.1) >= get_high_risk_threshold() * 1.2
+
+def print_predict_stats(df, cluster_risk_mapping, true_labels):        
+    predicted_labels = create_predicted_labels(df, cluster_risk_mapping)
+    
     df_metrics = true_labels.to_frame().join(predicted_labels)
     y_true = df_metrics['true_risk_label']
     y_pred = df_metrics['risk_label']
     
-    y_true_unique = set(y_true.dropna())
-    y_pred_unique = set(y_pred.dropna())
-    cluster_risk_mapping_unique = set(cluster_risk_mapping.values())
-
-    unique_labels = sorted(list(y_true_unique.union(y_pred_unique)))
-    target_names = sorted(list(cluster_risk_mapping_unique))
+    target_names = prepare_labels_for_classification(y_true, y_pred, cluster_risk_mapping)
+    y_true_array = y_true.astype(str).values
+    y_pred_array = y_pred.astype(str).values
     
-    if len(unique_labels) != len(target_names):
-        target_names = unique_labels
+    print_confusion_matrix(y_true_array, y_pred_array, target_names)
+    print_classification_report(y_true_array, y_pred_array, target_names)
 
-    target_names = sorted(target_names)
-    target_names = [str(x) for x in target_names]
-
-    y_true = y_true.values.astype(str)
-    y_pred = y_pred.values.astype(str)
-
-    print_section("Matriz de Confusão")
-    cm = confusion_matrix(
-        y_true, 
-        y_pred, 
-        labels=target_names
+def create_true_labels(df):
+    last_risk = df.groupby('event_id')['risk'].last()
+    risk_labels = last_risk.apply(
+        lambda x: 'High' if x >= get_high_risk_threshold() else 'Low/Medium'
     )
-    cm = pd.DataFrame(cm, index=[f'Real: {c}' for c in target_names], columns=[f'Previsto: {c}' for c in target_names])
-    display(cm)
+    risk_labels.name = 'true_risk_label'
+    return risk_labels
 
+def create_predicted_labels(df, cluster_risk_mapping):
+    event_clusters = df.reset_index().drop_duplicates('event_id').set_index('event_id')['cluster']
+    return event_clusters.map(cluster_risk_mapping).rename('risk_label')
+
+def prepare_labels_for_classification(y_true, y_pred, cluster_risk_mapping):
+    unique_true = set(y_true.dropna())
+    unique_pred = set(y_pred.dropna())
+    unique_mapped = set(cluster_risk_mapping.values())
+    
+    all_unique_labels = sorted(unique_true.union(unique_pred))
+    target_names = sorted(unique_mapped)
+    
+    target_names = ['High', 'Low/Medium']
+    
+    return [str(label) for label in sorted(target_names)]
+
+def print_confusion_matrix(y_true, y_pred, target_names):
+    print_section("Matriz de Confusão")
+    cm = confusion_matrix(y_true, y_pred, labels=target_names)
+    cm_df = pd.DataFrame(
+        cm, 
+        index=[f'Real: {label}' for label in target_names],
+        columns=[f'Previsto: {label}' for label in target_names]
+    )
+    display(cm_df)
+
+def print_classification_report(y_true, y_pred, target_names):
     print_section("Relatório de Classificação (Precision, Recall, F1-Score)")
-    report = classification_report(y_true, y_pred, labels=target_names, zero_division=0)
+    report = classification_report(
+        y_true, y_pred, labels=target_names, zero_division=0
+    )
     display(report)
 
 if __name__ == '__main__':

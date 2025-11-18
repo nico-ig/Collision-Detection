@@ -53,9 +53,11 @@ def load_data(file, convert_time_to_tca=True, add_columns=[]):
         'c_cd_area_over_mass',
         'c_sedr', 
         'c_obs_used', 
-        'c_sigma_t'
+        'c_sigma_t',
+        'cluster'
     ]
     features.extend(add_columns)
+    features = [col for col in features if col in df.columns]
     df = df[features]
     print_action(f"Dataset final com {len(df)} linhas e {len(df.columns)} colunas")
     
