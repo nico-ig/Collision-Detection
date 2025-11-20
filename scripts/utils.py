@@ -5,6 +5,8 @@ import os
 import math
 from IPython.display import display
 import multiprocessing
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 LINE_LENGTH = 110
 
@@ -30,37 +32,90 @@ def print_descriptive_stats(values, section_name):
 def set_global_options():
     print_action("Configurando opções globais")
     pd.set_option('display.precision', 4)
+    pd.set_option('display.float_format', '{:.4f}'.format)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_rows', None)
     pd.set_option('display.width', None)
     pd.set_option('display.max_colwidth', None)
+    plt.style.use('seaborn-v0_8-darkgrid')
+    plt.rcParams['figure.figsize'] = (12, 6)  
     joblib.parallel_backend('loky')
 
 def load_data(file, convert_time_to_tca=True, add_columns=[]):
     print_action("Carregando dados")
     df = pd.read_csv(file)
-    # event_ids = df['event_id'].unique()[10:20]
+    # event_ids = df['event_id'].unique()[100:110]
     # df = df[df['event_id'].isin(event_ids)]
     print_action(f"Dataset carregado com {len(df)} linhas e {len(df.columns)} colunas")
 
     print_action("Removendo colunas")
     features = [
         'event_id', 
-        'time_to_tca', 
-        'risk', 
-        'c_time_lastob_end', 
-        'c_time_lastob_start', 
+        'time_to_tca',
+        'risk',
+        'cluster',
+        'max_risk_scaling',
+        'mahalanobis_distance',
+        'c_position_covariance_det',
+        'c_obs_used',
+        'c_recommended_od_span',
+        'c_sedr',
+        'c_time_lastob_end',
+        'c_time_lastob_start',
+        'c_cr_area_over_mass',
         'c_cd_area_over_mass',
-        'c_sedr', 
-        'c_obs_used', 
-        'c_sigma_t',
-        'cluster'
     ]
+
     features.extend(add_columns)
     features = [col for col in features if col in df.columns]
     df = df[features]
     print_action(f"Dataset final com {len(df)} linhas e {len(df.columns)} colunas")
     
+    if convert_time_to_tca:
+        df['time_to_tca'] = df['time_to_tca'].apply(lambda x: pd.Timestamp(math.ceil(-x*24), unit='h'))
+
+    print_action("Ordenando por evento e time_to_tca")
+    df = df.sort_values(['event_id', 'time_to_tca'])
+
+    print_action("Atualizando index (event_id, time_to_tca)")
+    df = df.set_index(['event_id', 'time_to_tca'])
+
+    return df
+
+def load_data_full(file, convert_time_to_tca=True):
+    print_action("Carregando dados")
+    df = pd.read_csv(file)
+    # event_ids = df['event_id'].unique()[100:110]
+    # df = df[df['event_id'].isin(event_ids)]
+    features = [
+        'event_id', 
+        'time_to_tca',
+        'risk',
+        'max_risk_scaling',
+        'mahalanobis_distance',
+        'c_sigma_t',
+        'max_risk_estimate',
+        'c_sigma_rdot',
+        'miss_distance',
+        'c_position_covariance_det',
+        'c_sigma_n',
+        'c_sigma_r',
+        'c_obs_used',
+        'c_sigma_ndot',
+        'relative_position_n',
+        'c_recommended_od_span',
+        'relative_position_r',
+        'c_sedr',
+        'SSN',
+        'c_crdot_t',
+        'relative_speed',
+        'c_time_lastob_end',
+        'c_time_lastob_start',
+        'c_cr_area_over_mass',
+        'c_cd_area_over_mass',
+    ]
+    features = [col for col in features if col in df.columns]
+    df = df[features]
     if convert_time_to_tca:
         df['time_to_tca'] = df['time_to_tca'].apply(lambda x: pd.Timestamp(math.ceil(-x*24), unit='h'))
 

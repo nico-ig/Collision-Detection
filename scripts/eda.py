@@ -7,8 +7,14 @@ import tsod
 import tsod.hampel
 from IPython.display import display
 import statsmodels.tsa.stattools as stsm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+import matplotlib.pyplot as plt
 
-from utils import print_header, print_section, print_descriptive_stats, load_data, get_high_risk_threshold, set_global_options
+from utils import (
+    print_header, print_section, print_descriptive_stats,
+    load_data, get_high_risk_threshold, set_global_options,
+    load_data_full, get_high_risk_threshold
+)
 
 import warnings
 warnings.filterwarnings('ignore', message='Series.__setitem__ treating keys as positions is deprecated')
@@ -17,20 +23,20 @@ def eda(file):
     print_header("Iniciando EDA")
 
     set_global_options()
-    df = load_data(file, convert_time_to_tca=False)
-    df = df.reset_index()
-    df['time_to_tca'] = pd.to_timedelta(df['time_to_tca'], unit='d')
-    df = df.set_index(['event_id', 'time_to_tca'])
-    df = df.sort_index(ascending=[True, False])
+    df = load_data(file)
+    # df_full = load_data_full(file)
+
     print_dataset_characteristics(df)
     print_data_quality(df)
-    print_events_characteristics(df)
+    print_outliers(df)
     print_risk_characteristics(df)
     print_time_characteristics(df)
     print_constant_values(df)
-    print_outliers(df)
-    print_acf(df)
+    print_events_characteristics(df)
+    print_acf(df_full)
     print_correlation(df)
+    print_vif(df)
+    print_high_risk_events(df)
 
     print_header("Concluído")
 
@@ -58,14 +64,14 @@ def print_data_quality(df):
     null_cols = pd.DataFrame({
         'Qtd. Nulos': null_counts.values
     }, index=null_counts.index)
-    display(null_cols)
+    display(null_cols.sort_values('Qtd. Nulos'))
 
     print_section("Valores infinitos")
     inf_df = pd.DataFrame({
         'Infinitos (+)': (df == np.inf).sum(),
         'Infinitos (-)': (df == -np.inf).sum()
     })
-    display(inf_df)
+    display(inf_df.sort_values(['Infinitos (+)', 'Infinitos (-)']))
     
 def print_events_characteristics(df):
     print_header("Características dos eventos")
@@ -83,7 +89,7 @@ def print_events_characteristics(df):
 
     freq_df.index.name = 'Qtd. Observações'
     display(freq_df)
-       
+
     print_descriptive_stats(pd.DataFrame(event_sizes, columns=['Qtd. Observações']), "Quantidade de observações por evento")
 
 def print_risk_characteristics(df):
@@ -138,8 +144,14 @@ def print_risk_distribution_by_time(df):
     penultimate_obs = df.groupby('event_id').nth(-2).reset_index()
     process_observations(penultimate_obs, "Penúltimo")
 
-def process_observations(obs_df, label):   
-    bins = pd.timedelta_range(start='0 days', end='8 days', freq='1D')
+def process_observations(obs_df, label):
+    if not pd.api.types.is_timedelta64_dtype(obs_df['time_to_tca']):
+        if pd.api.types.is_datetime64_any_dtype(obs_df['time_to_tca']):
+            obs_df['time_to_tca'] = obs_df['time_to_tca'] - obs_df['time_to_tca'].min()
+        else:
+            obs_df['time_to_tca'] = pd.to_timedelta(obs_df['time_to_tca'], unit='h')
+    
+    bins = pd.timedelta_range(start='0 days', end='8 days', freq='8h')
     
     print_section(f"Distribuição do {label} Risco por Faixa de Tempo")
     risk_counts = obs_df.groupby(
@@ -148,7 +160,7 @@ def process_observations(obs_df, label):
         ('Alto Risco', lambda x: (x >= get_high_risk_threshold()).sum()),
         ('Baixo Risco', lambda x: (x < get_high_risk_threshold()).sum())
     ])
-    display(risk_counts[['Alto Risco', 'Baixo Risco']])
+    display(risk_counts)
 
 def print_risk_transitions(df):
     print_section("Contagem de Oscilações por Dia")
@@ -278,12 +290,30 @@ def print_time_stats(time_stats_df):
     
 def print_time_distribution(time_stats_df):
     print_header("Distribuição de Eventos por Faixa de Tempo")
-    bins = pd.timedelta_range(start='0 days', end='8 days', freq='1D')
+    
+    # Convert to hours, handling both datetime and timedelta inputs
+    def to_hours(series):
+        if pd.api.types.is_datetime64_any_dtype(series):
+            return (series - series.min()).dt.total_seconds() / 3600
+        elif pd.api.types.is_timedelta64_dtype(series):
+            return series.dt.total_seconds() / 3600
+        else:
+            raise ValueError("Unsupported datetime format")
+    
+    max_hours = 8 * 24
+    bins = range(0, max_hours + 1, 8)
+    
+    def bin_and_count(series):
+        hours = to_hours(series)
+        return pd.cut(hours, bins=bins, right=False).value_counts().sort_index()
+    
     result = pd.DataFrame({
-        'Primeira observação': pd.cut(time_stats_df['first'], bins=bins).value_counts(),
-        'Penúltima observação': pd.cut(time_stats_df['penultimate'], bins=bins).value_counts(),
-        'Última observação': pd.cut(time_stats_df['last'], bins=bins).value_counts(),
-    }).astype(int)    
+        'Primeira observação (horas)': bin_and_count(time_stats_df['first']),
+        'Penúltima observação (horas)': bin_and_count(time_stats_df['penultimate']),
+        'Última observação (horas)': bin_and_count(time_stats_df['last']),
+    }).astype(int)
+    
+ 
     display(result)
 
 def print_datetime_descriptive_stats(values, section_name):
@@ -304,11 +334,19 @@ def print_constant_values(df):
     print_section("Valores constantes por evento")
     df = df.reset_index().set_index('time_to_tca')
     results = {col: 0 for col in df.columns if col != 'event_id'}
-    detector = tsod.ConstantValueDetector(window_size=3, threshold=3)
+
+    total_events = df['event_id'].nunique()
+    i = 0
     for _, group in df.groupby('event_id'):
+        i += 1
+        if i % 100 == 0:
+            display(f"Processando evento {i}/{total_events}")
+
         for col in group.columns:
             if col == 'event_id':
                 continue
+            amp = (group[col].quantile(0.75) - group[col].quantile(0.25)) * 0.01
+            detector = tsod.ConstantValueDetector(window_size=3, threshold=amp)
             detector.fit(group[col])
             res = detector.detect(group[col])
             results[col] += np.array(res).sum()
@@ -320,29 +358,39 @@ def print_outliers(df):
     print_header("Outliers")
     print_section("Outliers por evento")
     results = {col: 0 for col in df.columns if col != 'event_id'}
-    detector = tsod.hampel.HampelDetector(window_size=3, threshold=3)
+    detector = tsod.hampel.HampelDetector(window_size=2, threshold=6)
+    df = df.sort_values(['time_to_tca'])
     for _, group in df.groupby('event_id'):
+        group = group.reset_index().set_index('time_to_tca')
         for col in group.columns:
             if col == 'event_id':
                 continue
-            detector.fit(group[col])
+            detector = detector.fit(group[col])
             res = detector.detect(group[col])
             results[col] += np.array(res).sum()
     result_df = pd.DataFrame(results, index=['Qtd. Outliers']).T
-    display(result_df)
+    display(result_df.sort_values('Qtd. Outliers'))
 
 def print_acf(df):
     print_header("ACF por Lag")
     n_lags = 6
-    results = {col: [] for col in df.columns if col != 'event_id'}    
-    for col in df.columns:
-        if col == 'event_id':
-            continue
-        for _, group in df.groupby('event_id'):
-            acf_vals = stsm.acf(group[col], nlags=n_lags)
-            results[col].append(acf_vals)
-        cols = [f'Lag {i}' for i in range(n_lags + 1)]
-        print_descriptive_stats(pd.DataFrame(results[col], columns=cols), f"ACF {col}")
+    
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    numeric_cols = [col for col in numeric_cols if col != 'event_id']
+
+    df = df.dropna()
+    
+    acf_summary = pd.DataFrame()
+    for col in numeric_cols:
+        acf_results = df.groupby('event_id')[col].apply(
+            lambda x: np.array([np.nan] * (n_lags + 1)) if x.nunique() <= 1 or x.var() == 0 else stsm.acf(x, nlags=n_lags, fft=True)
+        )
+        acf_df = pd.DataFrame(acf_results.tolist(), columns=[f'lag_{i}' for i in range(n_lags + 1)])
+        acf_df.index = acf_results.index
+        acf_summary[col] = acf_df.mean()
+    
+    print_header("Resumo ACF - Médias por Lag")
+    display(acf_summary.T)
 
 def print_correlation(df):
     print_header("Análise de Correlação com Risco")
@@ -355,13 +403,14 @@ def print_daily_risk_correlations(df):
     filtered_df.index = filtered_df.index.round('d')
     risk_correlations = pd.DataFrame()
     for day, group in filtered_df.groupby(filtered_df.index):
+        group = group.drop(columns='event_id')
         corr_matrix = group.corr()
         risk_corr = corr_matrix.loc[['risk']].T
         risk_corr = risk_corr.rename(columns={'risk': f"{day}"})
         risk_correlations = pd.concat([risk_correlations, risk_corr], axis=1)    
     risk_correlations = risk_correlations.drop('risk')
     print_section("Correlação diária com risco")
-    display(risk_correlations)
+    display(risk_correlations.sort_values(by=risk_correlations.columns.tolist()[::-1]))
     
 def print_last_k_risk_correlations(df, k):
     result_dfs = []
@@ -375,8 +424,33 @@ def print_last_k_risk_correlations(df, k):
     
     combined_df = pd.concat(result_dfs, axis=0) 
     print_section(f"Correlação com risco para os últimos {k} eventos")   
-    display(combined_df.T)
+    display(combined_df.T.sort_values(by=combined_df.T.columns.tolist()))
     
+def print_vif(df):
+    df = df.reset_index().drop(columns=['risk', 'time_to_tca'])
+    last_entries = df.groupby('event_id').last().dropna()
+    vif_data = pd.DataFrame()
+    vif_data["feature"] = last_entries.columns
+    vif_data["VIF"] = [variance_inflation_factor(last_entries.values, i) 
+                       for i in range(len(last_entries.columns))]
+    
+    print_header("Variance Inflation Factor (VIF)")
+    display(vif_data.sort_values('VIF'))
+
+def print_high_risk_events(df):
+    last_events = df.groupby('event_id').last()
+    high_risk_events = last_events['risk'] > get_high_risk_threshold()
+    total_events = len(last_events)  # Get number of events
+    high_risk_count = high_risk_events.sum()
+    
+    result = pd.DataFrame({
+        'High Risk': [f"{(high_risk_count / total_events) * 100:.2f}%"],
+        'Low/Medium Risk': [f"{((total_events - high_risk_count) / total_events) * 100:.2f}%"],
+        'Total Events': [total_events]
+    })
+    print_header("High Risk vs Low/Medium Risk Events")
+    display(result)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='EDA')
     parser.add_argument('-f', '--file', type=str, required=True, help='Path to the CSV file to use on the EDA')

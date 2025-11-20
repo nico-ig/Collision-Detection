@@ -157,7 +157,7 @@ def classify_clusters(df):
     return cluster_risk_mapping
 
 def is_cluster_high_risk(df):
-    return df['risk'].quantile(0.1) >= get_high_risk_threshold() * 1.2
+    return df['risk'].quantile(0.1) >= get_high_risk_threshold() * 0.8
 
 def print_predict_stats(df, cluster_risk_mapping, true_labels):        
     predicted_labels = create_predicted_labels(df, cluster_risk_mapping)
@@ -186,13 +186,9 @@ def create_predicted_labels(df, cluster_risk_mapping):
     return event_clusters.map(cluster_risk_mapping).rename('risk_label')
 
 def prepare_labels_for_classification(y_true, y_pred, cluster_risk_mapping):
-    unique_true = set(y_true.dropna())
-    unique_pred = set(y_pred.dropna())
     unique_mapped = set(cluster_risk_mapping.values())
-    
-    all_unique_labels = sorted(unique_true.union(unique_pred))
-    target_names = sorted(unique_mapped)
-    
+
+    target_names = sorted(unique_mapped)    
     target_names = ['High', 'Low/Medium']
     
     return [str(label) for label in sorted(target_names)]

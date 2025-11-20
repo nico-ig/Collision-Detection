@@ -1,0 +1,617 @@
+\documentclass[10pt]{IEEEtran}
+\usepackage[portuguese]{babel}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage[alf,num,abnt-repeated-author-omit=yes,abnt-etal-list=0,abnt-etal-cite=3]{abntex2cite}
+\citebrackets[]
+
+\renewcommand{\thetable}{\arabic{table}}
+\renewcommand{\thefigure}{\arabic{figure}}
+
+\makeatletter
+\renewcommand{\@biblabel}[1]{[#1] }
+
+\title{Detecção e Prevenção de Colisões Espaciais}
+\author{
+    \IEEEauthorblockN{Nico I. G. Ramos}
+    \IEEEauthorblockA{
+        GRR20210574\\
+    }
+}
+\date{\today}
+
+\begin{document}
+\sloppy
+\maketitle
+
+\begin{abstract}
+Este relatório apresenta o desenvolvimento de um modelo para detecção de risco de colisões espaciais, proposto no contexto de um desafio da Agência Espacial Europeia (ESA). O trabalho aborda a análise de séries temporais de mensagens de satélites, a complexidade da análise exploratória de dados (EDA) em um dataset de alta dimensionalidade e a evolução da metodologia: partindo da tentativa de previsão de valores contínuos com modelos ARIMA para uma abordagem de classificação baseada em clusterização com KMeans. O objetivo principal é minimizar os falsos negativos em eventos de alto risco.
+\end{abstract}
+
+\section{Introdução e Definição do Problema}
+
+A órbita terrestre encontra-se cada vez mais congestionada, aumentando drasticamente o risco de colisão entre satélites ativos e outros objetos espaciais, sejam eles detritos ou outros satélites. O problema central abordado neste trabalho é prever o risco final de colisão entre um satélite e outro objeto espacial.
+
+O dataset utilizado, proveniente do \textit{Collision Avoidance Challenge} \cite{esa-collision-challenge} da Agência Espacial Europeia (ESA), consiste em alertas reais enviados periodicamente pelos satélites à base. A base de operações recebe uma grande quantidade de avisos, mas apenas uma fração muito pequena representa um risco real e elevado. As manobras de evasão precisam ser planejadas com pelo menos 2 dias de antecedência em relação ao TCA, sendo a decisão final tomada 1 dia antes.
+
+Cada satélite envia mensagens contendo alertas de aproximação, formando uma série temporal para cada evento de possível colisão. Cada mensagem contém informações, tais como:
+
+\begin{itemize}
+    \item Data estimada da colisão (TCA - \textit{Time of Closest Approach});
+    \item Risco estimado;
+    \item Incertezas associadas à medição e à órbita.
+\end{itemize}
+
+Os scripts desenvolvidos podem ser encontrados no repositório do autor \cite{nicoig-collision-detection}.
+
+\subsection{Desafio Proposto}
+
+O desafio, proposto pela Agência Espacial Europeia (ESA), consiste em treinar um modelo capaz de prever o risco final estimado pelo satélite. O principal objetivo é minimizar os \textbf{Falsos Negativos}, ou seja, evitar que eventos de alto risco sejam incorretamente classificados como de baixo risco pelo modelo. Mais informações sobre o desafio podem ser encontradas na página oficial da competição \cite{esa-collision-challenge}.
+
+\section{Dados e Séries Temporais}
+
+As séries temporais no dataset são sequências de observações de variáveis coletadas em intervalos regulares e ordenadas cronologicamente, permitindo acompanhar a evolução dos atributos (velocidade, incerteza, risco) ao longo do tempo até o TCA (Time of Closest Approach).
+
+Os eventos possuem a seguinte estrutura:
+
+\begin{itemize}
+    \item Cada linha do dataset representa uma observação (mensagem);
+    \item Todas as linhas referentes a um mesmo \textit{event\_id} formam a série temporal daquele evento;
+\end{itemize}
+
+A Figura \ref{fig:exemplo-serie} exemplifica parte de uma série temporal de um evento.
+
+\begin{figure}[htpb]
+    \caption{Exemplo de série temporal de um evento.}
+    \label{fig:exemplo-serie}
+    \centering
+    \resizebox{\columnwidth}{!}{\input{./figures/exemplo-serie.pgf}}
+\end{figure}
+
+\subsection{Objetivo do Projeto}
+
+Inicialmente, o objetivo era projetar e treinar um modelo capaz de prever o valor numérico do risco final estimado, comparando o desempenho de dois otimizadores (\textit{descida de encosta} e \textit{Adam}) aplicados a modelos ARIMA (\textit{Auto Regressive Integrated Moving Average}). 
+
+Esses modelos tentam prever valores futuros de uma série com base em seus próprios valores passados (lags) e nos erros de previsão anteriores. Trata-se de uma abordagem clássica para dados estacionários ou que podem ser tornados estacionários; uma explicação mais detalhada sobre esses modelos pode ser encontrada nos materiais didáticos do curso de Series Temporais do professor Lucambio Perez \cite{Lucambio-STemporaisIII}. 
+
+Conforme detalhado na seção de Metodologia, dificuldades com esses modelos levaram à redefinição do objetivo para a \textbf{classificação} dos eventos em alto ou baixo risco.
+
+\section{Análise Exploratória de Dados (EDA)}
+
+A Análise Exploratória de Dados foi o principal desafio enfrentado neste projeto. A complexidade advém de ser um problema de domínio específico (dinâmica orbital) e da alta dimensionalidade inicial, com 103 colunas.
+
+Em uma fase preliminar da análise (anterior aos resultados finais aqui apresentados), o processo foi iterativo. Tentou-se usar técnicas estatísticas para descobrir as colunas mais relevantes e filtrar as de menos relevância. Contudo, nenhum conjunto obtido era considerado satisfatório e optou-se por descartar a seleção puramente empírica e buscar apoio na literatura:
+
+\begin{enumerate}
+    \item \textit{PACEcraft Collision Avoidance Challenge: Design and Results} \cite{pacecraft}: Analisa os resultados da competição, fornecendo \textit{insights}.
+    \item \textit{Implementation and Comparison of Data-Based Methods} \cite{esa-methods}: Compara métodos estatísticos e de ML para o problema.
+\end{enumerate}
+
+Com base na interseção das features citadas nestes artigos, chegou-se ao conjunto inicial de variáveis, focado principalmente nas métricas de incerteza.
+
+A Tabela \ref{tab:colunas-selecionadas-inicialmente} mostra o conjunto inicial e o significado de cada atributo.
+
+\begin{table}[htpb]
+\centering
+\caption{Colunas Selecionadas Inicialmente}
+\label{tab:colunas-selecionadas-inicialmente}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{p{5cm} p{9cm}}
+\toprule
+Coluna & Significado \\
+\midrule
+event\_id & Identificador único do evento de conjunção (ID da CDM). \\ 
+risk & Valor de risco autocomputado no instante de cada CDM (log$_{10}$ da probabilidade). \\
+time\_to\_tca & Intervalo de tempo entre a criação do CDM e o instante de aproximação máxima (TCA), em dias. \\ 
+max\_risk\_scaling & Fator de escala usado para calcular a probabilidade máxima de colisão. \\
+mahalanobis\_distance & Distância de Mahalanobis baseada na covariância combinada. \\
+c\_sigma\_t & Desvio-padrão da posição transversal (along-track) do chaser \,[m]. \\
+max\_risk\_estimate & Probabilidade máxima de colisão obtida pela covariância combinada escalada. \\
+c\_sigma\_rdot & Desvio-padrão da velocidade radial do chaser \,[m/s]. \\
+miss\_distance & Distância relativa entre chaser e target no TCA \,[m]. \\
+c\_position\_covariance\_det & Determinante da matriz de covariância de posição do chaser. \\
+c\_sigma\_n & Desvio-padrão da posição normal (cross-track) do chaser \,[m]. \\
+c\_sigma\_r & Desvio-padrão da posição radial do chaser \,[m]. \\
+c\_obs\_used & Número de observações usadas na determinação de órbita. \\
+c\_sigma\_ndot & Desvio-padrão da velocidade normal (cross-track) do chaser \,[m/s]. \\
+relative\_position\_n & Posição relativa entre os objetos no eixo normal/cross-track \,[m]. \\
+c\_recommended\_od\_span & Intervalo recomendado para determinação orbital (dias). \\
+relative\_position\_r & Posição relativa entre os objetos no eixo radial \,[m]. \\
+c\_sedr & Taxa de dissipação de energia do chaser (SED rate) \,[W/kg]. \\
+SSN & Número de manchas solares (Sunspot Number). \\
+c\_crdot\_t & Correlação entre velocidade radial e posição transversal do chaser. \\
+relative\_speed & Velocidade relativa entre chaser e target no TCA \,[m/s]. \\
+c\_time\_lastob\_end & Fim do intervalo da última observação usada na determinação orbital \,[dias]. \\
+c\_time\_lastob\_start & Início do intervalo da última observação usada na determinação orbital \,[dias]. \\
+c\_cr\_area\_over\_mass & Coeficiente relacionado à pressão de radiação solar (área/massa). \\
+c\_cd\_area\_over\_mass & Coeficiente balístico do chaser (área/massa). \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Dimensões do Dataset}
+
+O dataset apresenta as dimensões detalhadas na Tabela \ref{tab:dimensoes}. A quantidade de observações por evento varia, sendo que 50\% dos eventos possuem 13 ou menos observações, com um máximo de 23 e mínimo de 1.
+
+\begin{table}[htpb]
+\centering
+\caption{Dimensões dos Conjuntos de Dados}
+\label{tab:dimensoes}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccc}
+\toprule
+Conjunto & Linhas & Eventos Únicos & Média Obs./Evento \\
+\midrule
+Treino & 162.634 & 13.154 & 12 \\
+Teste  & 24.484  & 2.167  & 11 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Características e Limpeza dos Dados}
+
+Os dados são contínuos e as séries possuem uma frequência aproximada de 8 horas. A detecção de anomalias e limpeza seguiu os seguintes passos:
+
+\begin{itemize}
+    \item Identificação de Valores Nulos
+    \item Identificação de Outliers no tempo
+    \item Identificação de Valores Constantes no tempo
+\end{itemize}
+
+Durante a etapa de identificação de valores nulos, foi observada que as colunas \textit{SSN}, \textit{c\_sigma\_ndot}, \textit{c\_sigma\_rdot} e \textit{c\_crdot\_t} possuem valores nulos significativos e foram removidas. A Tabela \ref{tab:nulls} ilustra a quantidade de valores nulos nessas colunas.
+
+\begin{table}[htpb]
+\centering
+\caption{Colunas com Valores Nulos Significativos}
+\label{tab:nulls}
+\begin{tabular}{lc}
+\toprule
+Coluna & Null Count \\
+\midrule
+SSN & 6.822 \\
+c\_sigma\_ndot & 9.241 \\
+c\_sigma\_rdot & 9.241 \\
+c\_crdot\_t & 9.241 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Para a escolha dos outliers, optou-se por utilizar o método Hampel. Contudo, janelas temporais pequenas ($window=1$) não detectaram nulos, enquanto janelas maiores detectaram muitos, não sendo encontrado um meio tempo em nenhuma combinação de \textit{window} e tolênrancia. A Tabela \ref{tab:outliers} demonstra a quantidade de outliers detectados em algumas das principais variáveis com ($windowz>1$).
+
+\begin{table}[htpb]
+\centering
+\caption{Quantidade de Outliers Detectados (Seleção)}
+\label{tab:outliers}
+\begin{tabular}{lc}
+\toprule
+Coluna & Qtd. Outliers \\
+\midrule
+SSN & 29 \\
+c\_sedr & 304 \\
+relative\_speed & 572 \\
+mahalanobis\_distance & 761 \\
+miss\_distance & 823 \\
+risk & 1.075 \\
+max\_risk\_estimate & 1.108 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Para a detecção de valores constantes, foi utilizada uma janela de tamanho 3 e um threshold de 1\% do IQR. Observou-se que todas as colunas possuem uma grande quantidade de valores constantes ao longo do tempo, indicando que as séries tem um período estacionário. A Tabela \ref{tab:constantes_features} mostra a quantidade de valores constantes por variável.
+
+\begin{table}[htpb]
+\centering
+\caption{Quantidade de Valores Constantes por Variável}
+\label{tab:constantes_features}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{l r}
+\toprule
+Feature & Qtd. Constantes \\
+\midrule
+\textbf{miss\_distance}             & \textbf{6,964} \\
+\textbf{relative\_position\_n}      & \textbf{7,379} \\
+\textbf{mahalanobis\_distance}      & \textbf{8,134} \\
+\textbf{relative\_position\_r}      & \textbf{8,778} \\
+max\_risk\_estimate                 & 13,532 \\
+relative\_speed                     & 17,718 \\
+c\_sigma\_rdot                      & 31,706 \\
+c\_sigma\_t                         & 32,086 \\
+max\_risk\_scaling                  & 38,655 \\
+c\_crdot\_t                         & 40,961 \\
+c\_position\_covariance\_det        & 51,916 \\
+c\_sigma\_r                         & 51,874 \\
+risk                                & 57,037 \\
+c\_time\_lastob\_end                & 67,493 \\
+c\_sigma\_ndot                      & 70,013 \\
+c\_time\_lastob\_start              & 70,350 \\
+c\_cr\_area\_over\_mass             & 72,551 \\
+c\_obs\_used                        & 75,628 \\
+c\_sigma\_n                         & 76,022 \\
+c\_recommended\_od\_span            & 77,530 \\
+c\_sedr                             & 77,669 \\
+c\_cd\_area\_over\_mass             & 78,316 \\
+SSN                                 & 85,524 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\section{Correlações}
+
+\subsection{Correlação com o risco nas observações finais}
+
+As principais colunas correlacionadas com o risco nas observações finais são aquelas que medem a incerteza da observação. Entre elas, a incerteza na determinação da órbita do chaser apresenta a maior correlação, cerca do dobro da segunda maior, seguida pela incerteza na medida da distância, que também possui impacto significativo. Ao longo dos dias, a incerteza na determinação da órbita e na posição do chaser se tornam cada vez mais relevantes, enquanto a importância do tamanho do objeto e do arrasto aumentam até a metade do período, para depois diminuir. Já a estimativa de risco máximo e a quantidade de observações começam com grande relevância, mas tendem a perder importância com o tempo.
+
+A Figura \ref{fig:evolucao-correlacao} mostra a evolução da correlação das variáveis com o risco ao longo dos dias e a Tabela \ref{tab:correlacao-2-dias} a correlação das variáveis com o risco nos dois dias que antecedem o TCA.
+
+\begin{figure}[htpb]
+    \caption{Evolução da correlação com o risco ao longo dos dias.}
+    \label{fig:evolucao-correlacao}
+    \centering
+    \resizebox{\columnwidth}{!}{\input{./figures/evolucao-correlacao.pgf}}
+\end{figure}
+
+\begin{table}[htpb]
+\centering
+\caption{Correlação com o risco nos dois dias anteriores}
+\label{tab:correlacao-2-dias}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcc}
+\toprule
+Feature & -1 day & -2 days \\
+\midrule
+c\_time\_lastob\_start & 0.4164 & 0.4036 \\
+c\_time\_lastob\_end & 0.4078 & 0.3923 \\
+mahalanobis\_distance & -0.2593 & -0.2825 \\
+c\_obs\_used & -0.1670 & -0.1653 \\
+c\_cr\_area\_over\_mass & 0.1557 & 0.1563 \\
+c\_sedr & 0.1425 & 0.1527 \\
+c\_sigma\_t & 0.1410 & 0.1220 \\
+c\_sigma\_r & 0.1331 & 0.1137 \\
+c\_sigma\_n & 0.1330 & 0.1136 \\
+c\_position\_covariance\_det & 0.1330 & 0.1136 \\
+c\_cd\_area\_over\_mass & 0.1239 & 0.1247 \\
+c\_sigma\_rdot & 0.1180 & 0.1168 \\
+c\_recommended\_od\_span & 0.1171 & 0.0926 \\
+c\_sigma\_ndot & 0.1095 & 0.1089 \\
+max\_risk\_estimate & 0.0999 & 0.0891 \\
+max\_risk\_scaling & -0.0805 & -0.0724 \\
+SSN & 0.0498 & 0.0422 \\
+c\_crdot\_t & 0.0188 & 0.0568 \\
+miss\_distance & 0.0037 & -0.0324 \\
+relative\_position\_r & 0.0008 & 0.0188 \\
+relative\_speed & -0.0315 & -0.0213 \\
+relative\_position\_n & -0.0150 & -0.0084 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\section{Relação entre colunas}
+
+\subsection{Multicolinearidade (VIF)}
+
+As colunas relacionadas ao volume do erro do chaser apresentam os maiores níveis de multicolinearidade. A Tabela \ref{tab:vif} apresenta os valores de VIF correspondentes às variáveis.
+
+\begin{table}[htpb]
+\centering
+\caption{Variance Inflation Factor (VIF)}
+\label{tab:vif}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lr}
+\toprule
+Feature & VIF \\
+\midrule
+c\_crdot\_t & 0.0161 \\
+max\_risk\_estimate & 0.0254 \\
+relative\_speed & 0.1402 \\
+c\_recommended\_od\_span & 0.3911 \\
+miss\_distance & 0.4256 \\
+SSN & 0.6051 \\
+c\_time\_lastob\_end & 0.6592 \\
+c\_obs\_used & 0.7163 \\
+c\_time\_lastob\_start & 0.7828 \\
+mahalanobis\_distance & 0.8142 \\
+c\_cr\_area\_over\_mass & 0.8983 \\
+c\_cd\_area\_over\_mass & 0.9302 \\
+c\_sedr & 0.9587 \\
+max\_risk\_scaling & 0.9864 \\
+relative\_position\_r & 0.9961 \\
+relative\_position\_n & 1.0020 \\
+\textbf{c\_sigma\_t} & \textbf{73.6501} \\
+\textbf{c\_sigma\_rdot} & \textbf{101.1216} \\
+\textbf{c\_sigma\_r} & \textbf{217{,}687.1774} \\
+\textbf{c\_sigma\_n} & \textbf{73{,}747{,}676.0191} \\
+\textbf{c\_sigma\_ndot} & \textbf{87{,}927{,}389.8727} \\
+\textbf{c\_position\_covariance\_det} & \textbf{311{,}512{,}889.3774} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Auto Correlação (ACF)}
+
+A análise da auto correlação (ACF) das observações anteriores é apresentada na Figura \ref{fig:acf}. Observa-se que as auto correlações decrescem monotonicamente, permanecendo significativas até o \textit{lag 3}, a partir do qual deixam de ser relevantes. Isso indica que informações de observações depois do \textit{lag 3} têm menor impacto na estimativa do risco atual.
+
+\begin{figure}[htpb]
+    \caption{Auto correlação das observações anteriores}
+    \label{fig:acf}
+    \centering
+    \resizebox{\columnwidth}{!}{\input{./figures/auto-correlacao.pgf}}
+\end{figure}
+
+\section{Evolução do risco}
+
+No que diz respeito à evolução do risco, a maior parte dos eventos classificados inicialmente como de alto risco é posteriormente atualizada para baixo risco antes da última observação. Poucos eventos apresentam oscilações entre estados, e as transições tendem a se tornar menos frequentes à medida que o TCA se aproxima. Além disso, é evidente que há muito mais eventos que passam de alto para baixo risco do que o contrário.
+
+A Figura \ref{fig:transicoes} ilustra a evolução diária das transições de risco, mostrando como os estados variam ao longo do tempo. Já a Figura \ref{fig:transicoes-total} apresenta o total das transições por dia, reforçando a tendência de redução das mudanças à medida que o TCA se aproxima.
+
+\begin{figure}[htpb]
+    \caption{Evolução das transições de risco por dia}
+    \label{fig:transicoes}
+    \centering
+    \resizebox{\columnwidth}{!}{\input{./figures/transicoes-risk.pgf}}
+\end{figure}
+
+\begin{figure}[htpb]
+    \caption{Total das transições de risco por dia}
+    \label{fig:transicoes-total}
+    \centering
+    \resizebox{\columnwidth}{!}{\input{./figures/transicoes-total-risk.pgf}}
+\end{figure}
+
+\section{Divisão do Conjunto de Dados}
+
+O conjunto de treino foi dividido em 80\% para treino e 20\% para validação, mantendo a proporção de eventos de alto risco em cada subconjunto. Como esses eventos são raros, eles foram selecionados de forma a super-representar a quantidade real. Todos os eventos do conjunto de teste apresentam a última observação a menos de um dia do TCA, enquanto todas as outras observações estão a pelo menos 2 dias do TCA, garantindo tempo suficiente para planejar e executar a manobra. Por outro lado, os eventos do conjunto de teste não são filtrados. 
+
+A Tabela \ref{tab:crit-obs} ilustra os critérios de observação por conjunto, e a Tabela \ref{tab:distribuicao-eventos} apresenta a distribuição de eventos por conjunto e categoria de risco.
+
+\begin{table}[htpb]
+\centering
+\caption{Critérios de observação por conjunto}
+\label{tab:crit-obs}
+\begin{tabular}{lcc}
+\toprule
+TCA & Última observação & Todas antes da última \\
+\midrule
+Teste & $< 1$ dia & $> 2$ dias \\
+Treino & Qualquer data & Qualquer data \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htpb]
+\centering
+\caption{Distribuição de eventos por conjunto e categoria de risco}
+\label{tab:distribuicao-eventos}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccc}
+\toprule
+Conjunto & Alto Risco & Baixo/Médio Risco & Total de Eventos \\
+\midrule
+Treino (Original) & 2.77\% & 97.23\% & 13154 \\
+Validação & 2.89\% & 97.11\% & 2630 \\
+Treino & 2.75\% & 97.25\% & 10524 \\
+Teste & 8.21\% & 91.79\% & 2167 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\section{Dataset Final}
+
+A Tabela \ref{tab:dicionario_dataset} apresenta as variáveis selecionadas do dataset ao final do EDA, enquanto a Tabela \ref{tab:estatisticas-dataset} ilustra as estatísticas do dataset final.
+
+\begin{table}[htpb]
+\centering
+\caption{Dicionário de Variáveis Selecionadas do Dataset}
+\label{tab:dicionario_dataset}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{p{5cm} p{9cm}}
+\toprule
+Coluna & Significado \\
+\midrule
+event\_id & Identificador único do evento de conjunção (ID da CDM). \\ 
+risk & Valor de risco autocomputado no instante de cada CDM (log$_{10}$ da probabilidade). \\
+time\_to\_tca & Intervalo de tempo entre a criação do CDM e o instante de aproximação máxima (TCA), em dias. \\ 
+max\_risk\_scaling & Escala usada para calcular a probabilidade máxima de colisão a partir da covariância combinada. \\
+mahalanobis\_distance & Distância de Mahalanobis baseada na covariância combinada (métrica estatística não descrita oficialmente em detalhes). \\
+c\_position\_covariance\_det & Determinante da matriz de covariância de posição do \textit{chaser} (volume da incerteza). \\
+c\_obs\_used & Número de observações usadas na determinação de órbita do \textit{chaser}. \\
+c\_recommended\_od\_span & Intervalo recomendado para atualização da determinação de órbita do \textit{chaser} (dias). \\
+c\_sedr & Taxa de dissipação de energia do \textit{chaser} (\textit{Solar Energy Dissipation Rate}). \\
+c\_time\_lastob\_end & Fim do intervalo (em dias) da última observação aceita antes da criação do CDM. \\
+c\_time\_lastob\_start & Início do intervalo (em dias) da última observação aceita antes da criação do CDM. \\
+c\_cr\_area\_over\_mass & Coeficiente balístico associado à pressão de radiação solar (área/massa). \\
+c\_cd\_area\_over\_mass & Coeficiente balístico associado ao arrasto atmosférico (área/massa). \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[htpb]
+\centering
+\caption{Estatísticas do dataset final}
+\label{tab:estatisticas-dataset}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccccccc}
+\toprule
+Coluna & Mean & Std & Min & 25\% & 50\% & 75\% & Max \\
+\midrule
+c\_cd\_area\_over\_mass & 0.7843 & 2.3417 & -128.1786 & 0.1774 & 0.4387 & 0.6928 & 147.9127 \\
+c\_cr\_area\_over\_mass & 0.3465 & 0.9655 & -0.7121 & 0.0518 & 0.1813 & 0.3052 & 59.1550 \\
+c\_obs\_used & 59.1585 & 84.9738 & 3.0000 & 21.0000 & 30.0000 & 57.0000 & 2227.0000 \\
+c\_position\_covariance\_det & 1.10e+45 & 8.53e+45 & -8.18e+18 & 2.36e+11 & 4.09e+13 & 6.06e+15 & 6.73e+58 \\
+c\_recommended\_od\_span & 12.6636 & 9.9371 & 0.0000 & 6.5900 & 11.5200 & 16.4700 & 234.4100 \\
+c\_sedr & 0.0030 & 0.0150 & -0.1073 & 0.0003 & 0.0007 & 0.0015 & 0.8762 \\
+c\_time\_lastob\_end & 0.5897 & 0.8232 & 0.0000 & 0.0000 & 0.0000 & 1.0000 & 2.0000 \\
+c\_time\_lastob\_start & 40.1508 & 73.8095 & 1.0000 & 1.0000 & 1.0000 & 2.0000 & 180.0000 \\
+mahalanobis\_distance & 192.6028 & 433.6808 & 0.0000 & 22.4056 & 71.1696 & 198.4767 & 15427.1608 \\
+max\_risk\_scaling & 5.37e+4 & 9.09e+5 & 0.0000 & 8.3239 & 31.7449 & 304.7437 & 4.98e+7 \\
+risk & -19.3406 & 10.0116 & -30.0000 & -30.0000 & -17.8706 & -9.1733 & -1.4429 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\section{Conclusão do EDA}
+
+No EDA, houve uma redução de 50\% das colunas exógenas originais, com 11 colunas removidas de um total de 21. O dataset final passou a conter 12 colunas, sendo 10 colunas exógenas, 1 identificador da série e 1 identificador do tempo. As colunas quantificam principalmente a incerteza e a confiança na órbita do chaser, bem como sua resistência ao movimento em alta e baixa órbita. Os eventos tendem a apresentar uma parte estável e são fortemente correlacionados com eventos próximos, embora as observações anteriores percam relevância rapidamente. Uma vez que um evento muda de estado, ele tende a permanecer nele, sem oscilar.
+
+\section{Escolha do Modelo}
+
+Inicialmente, foi escolhido o modelo ARIMA, entretanto, sua limitação de ser univariado permitiria analisar apenas a evolução do risco ao longo do tempo, sem considerar as interações com as variáveis exógenas, o que não é adequado ao problema. O ARIMAX apresenta a limitação de exigir os valores futuros das variáveis para prever o risco. O VARMAX, por sua vez, não conseguiu gerar modelos confiáveis para a maior parte das séries, as tabelas \ref{tab:sarimax_101}, \ref{tab:sarimax_110} e \ref{tab:sarimax_111} mostram os resultados para as ordens (1,0,1), (1,1,0) e (1,1,1), respectivamente. Os modelos foram implementados com a biblioteca statsmodels \cite{statsmodels}.
+
+\begin{table}[htpb]
+\centering
+\caption{Resultados da Regressão: SARIMAX(1, 0, 1)}
+\label{tab:sarimax_101}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccccc}
+\toprule
+\multicolumn{7}{c}{Dep. Variable: risk | No. Obs: 22} \\
+\multicolumn{7}{c}{Log Likelihood: -2.196 | AIC: 10.393 | BIC: 11.586} \\
+\midrule
+Termo & Coef. & Std. Err. & z & P$>|z|$ & [0.025 & 0.975] \\
+\midrule
+ar.L1   & 0.7364  & 0.137 & 5.384 & 0.000 & 0.468 & 1.004 \\
+ma.L1  & 12.0574 & 6.143 & 1.963 & 0.050 & 0.017 & 24.098 \\
+sigma2 & 0.0003  & 0.000 & 0.907 & 0.364 & -0.000 & 0.001 \\
+\midrule
+\multicolumn{7}{l}{Diagnóstico dos Resíduos:} \\
+\multicolumn{7}{l}{Ljung-Box (Q): 0.05 (Prob: 0.82) | Jarque-Bera: 0.57 (Prob: 0.75)} \\
+\multicolumn{7}{l}{Heteroskedasticity (H): 0.91 (Prob: 0.93) | Skew: -0.03 | Kurtosis: 1.89} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[htpb]
+\centering
+\caption{Resultados da Regressão: SARIMAX(1, 1, 0)}
+\label{tab:sarimax_110}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccccc}
+\toprule
+\multicolumn{7}{c}{Dep. Variable: risk | No. Obs: 22} \\
+\multicolumn{7}{c}{Log Likelihood: -2.775 | AIC: 9.550 | BIC: 10.346} \\
+\midrule
+Termo & Coef. & Std. Err. & z & P$>|z|$ & [0.025 & 0.975] \\
+\midrule
+ar.L1  & -0.1733 & 0.873 & -0.199 & 0.843 & -1.884 & 1.537 \\
+sigma2 & 0.0482  & 0.026 & 1.843  & 0.065 & -0.003 & 0.099 \\
+\midrule
+\multicolumn{7}{l}{Diagnóstico dos Resíduos:} \\
+\multicolumn{7}{l}{Ljung-Box (Q): 0.06 (Prob: 0.81) | Jarque-Bera: 0.30 (Prob: 0.86)} \\
+\multicolumn{7}{l}{Heteroskedasticity (H): 0.55 (Prob: 0.57) | Skew: 0.15 | Kurtosis: 2.24} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[htpb]
+\centering
+\caption{Resultados da Regressão: SARIMAX(1, 1, 1)}
+\label{tab:sarimax_111}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccccc}
+\toprule
+\multicolumn{7}{c}{Dep. Variable: risk | No. Obs: 22} \\
+\multicolumn{7}{c}{Log Likelihood: -1.790 | AIC: 9.579 | BIC: 10.487} \\
+\midrule
+Termo & Coef. & Std. Err. & z & P$>|z|$ & [0.025 & 0.975] \\
+\midrule
+ar.L1  & 0.8251  & 0.177 & 4.666 & 0.000 & 0.479 & 1.172 \\
+ma.L1  & -2.0437 & NaN   & NaN   & NaN   & NaN   & NaN \\
+sigma2 & 0.0113  & NaN   & NaN   & NaN   & NaN   & NaN \\
+\midrule
+\multicolumn{7}{l}{Diagnóstico dos Resíduos:} \\
+\multicolumn{7}{l}{Ljung-Box (Q): 0.00 (Prob: 1.00) | Jarque-Bera: 2.18 (Prob: 0.34)} \\
+\multicolumn{7}{l}{Heteroskedasticity (H): 1.17 (Prob: 0.90) | Skew: -0.98 | Kurtosis: 4.19} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+Foi feita uma tentativa de treinar um modelo global, capaz de prever padrões com base em todas as séries temporais disponíveis. No entanto, algoritmos como o ARIMA capturam apenas o padrão de uma única série temporal. A primeira abordagem consistiu em buscar os melhores pesos para uma nova série temporal de risco, com base nos pesos obtidos no conjunto de treino via \textit{grid search}. Porém, muitas séries eram muito pequenas, fazendo com que o modelo não convergisse.
+
+Também foi tentado reduzir a frequência das séries (aumentar o período) para atingir um tamanho mínimo, mas isso suavizou os dados e impediu que os modelos capturassem padrões temporais relevantes. Em seguida, considerou-se gerar dados artificiais com base em séries similares através de clusterização. 
+
+Algumas tentativas com SARIMAX foram feitas, devido à limitação do ARIMAX de prever apenas uma variável, mas os resultados não foram satisfatórios. Os modelos que convergiram não conseguiram generalizar bem para novas séries, principalmente devido ao desalinhamento temporal entre sequências, dificultando encontrar pontos temporais coincidentes entre a série global e a nova série.
+
+Posteriormente, explorou-se a possibilidade de utilizar modelos que considerassem múltiplas variáveis e múltiplas séries simultaneamente. Foram escolhidos dois algoritmos da biblioteca \textit{skforecast} \cite{skforecast}: \texttt{ForecasterDirectMultiVariate} e \texttt{ForecasterRecursiveMultiSeries}. Entretanto, eles não funcionam em conjunto, e não foi encontrada forma de utilizar um regressor que fosse multivariado com o \texttt{ForecasterRecursiveMultiSeries}, ou multissérie com o \texttt{ForecasterDirectMultiVariate}. Uma alternativa considerada foi utilizar o \texttt{ForecasterRecursiveMultiSeries} com SARIMAX, mas isso não resolveu os problemas de convergência e desalinhamento temporal entre séries.
+
+Como os modelos não conseguiram generalizar para novas séries ou não foram adequados para o problema, o objetivo de prever o valor numérico do risco foi abandonado e optou-se por uma abordagem baseada em clusterização seguida de classificação. A ideia é agrupar séries similares e utilizar as características dos clusters para classificar os eventos em alto ou baixo risco.
+
+\section{Treino}
+
+No treino, as séries foram padronizadas por meio de ressample, ajustando o tamanho para o da maior série e uniformizando a frequência entre os eventos de cada série. Em seguida, aplicou-se uma normalização com variância média, ignorando diferenças de amplitude e escala entre as colunas, de modo a comparar a forma das séries em vez dos valores absolutos. 
+
+A clusterização foi realizada com o algoritmo KMeans, utilizando a métrica DTW para comparar séries desalinhadas, com máximo de 100 iterações e três clusters definidos.Por fim, os eventos foram classificados como alto risco quando 5\% dos riscos na última observação excediam o threshold de $-6$ ($\log 10^{-6}$), conforme especificado no desafio \cite{esa-collision-challenge}. Todos os demais eventos foram classificados como baixo risco, considerando que casos de alto risco são raros.
+
+No conjunto de validação e teste, a previsão e classificação foram feitas utilizando a penúltima observação, e os resultados comparados com a última observação de cada evento. O conjunto de validação foi utilizado para ajustar o threshold de classificação, enquanto o conjunto de teste foi avaliado com o threshold definido.
+
+\section{Resultados}
+
+O cluster 0 foi o único cluster a indentificar eventos de baixo risco, a Tabela \ref{tab:clusters} apresenta a média e o percentil 75\% do risco para cada cluster identificado.
+
+\begin{table}[htpb]
+\centering
+\caption{Média e 75\% de risco por cluster}
+\label{tab:clusters}
+\begin{tabular}{lcc}
+\toprule
+Cluster & Mean Risk & 75\% Risk \\
+\midrule
+0 & -27.3440 & -28.5429 \\
+1 & -9.7131 & -6.8949 \\
+2 & -20.7393 & -11.4110 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+As Tabelas \ref{tab:conf-val-test} apresentam as matrizes de confusão obtidas nos conjuntos de validação e teste. Na validação, observa-se que a maior parte dos eventos de baixo/médio risco foi corretamente identificada, enquanto quatro casos de alto risco foram classificados incorretamente. No conjunto de teste, o comportamento da classificação se manteve similar, classificando quase todos os eventos como de baixo/médio risco, com poucos falsos negativos para alto risco.
+
+\begin{table}[htpb]
+\centering
+\caption{Matriz de confusão na validação e no teste}
+\begin{tabular}{lccc}
+\toprule
+Conjunto & Real \textbackslash Previsto & High & Low/Medium \\
+\midrule
+Validação & High & 71 & 4 \\
+& Low/Medium & 2117 & 401 \\
+\midrule
+Teste & High & 172 & 1 \\
+& Low/Medium & 1663 & 256 \\
+\bottomrule
+\end{tabular}
+\label{tab:conf-val-test}
+\end{table}
+
+\section{Conclusões}
+
+Modelos de séries temporais como o Arima, Arimax e Varmax não se mostraram adequados para identificar e \textbf{generalizar padrões entre séries distintas}, além de dependerem da \textbf{estimativa futura das outras variáveis} para fazer previsões. Eles também não funcionam bem com séries curtas, como as presentes no dataset, embora sejam eficientes quando há observações suficientes.  
+
+Além disso, o \textit{resample} das séries pode levar à perda de informações e características importantes, prejudicando a qualidade das previsões. Destaca-se que o modelo tenta prever o risco com base em quão \textbf{incertas} as medidas são.
+
+A divisão em clusters priorizou o \textit{recall}, evitando falsos negativos em eventos de alto risco. Na prática, porém, essa estratégia resultou na classificação quase universal de eventos como de alto risco, tornando-se ineficaz para diferenciar confiavelmente entre eventos de alto e baixo risco.
+
+\section{Trabalhos Futuros}
+
+Para melhorar os resultados, é possível explorar a possibilidade de treinar para outros tamanhos de clusters e procurar uma maneira de combinar a classificação do risco com a predição do valor final. A ideia é utilizar a identificação de padrões gerais similares (classificação) para auxiliar na predição do valor final dos eventos, generalizando informações de eventos semelhantes para as séries muito curtas. Também seria interessante explorar outras combinações de variáveis para classificar os eventos.
+
+\bibliographystyle{abntex2-num}
+\bibliography{referencias}
+
+\end{document}
