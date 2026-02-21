@@ -1,0 +1,44 @@
+==============================================================================================================
+                                     Iniciando validação de CLASSIFICAÇÃO                                     
+==============================================================================================================
+----> Configurando opções globais
+----> Carregando dados
+----> Dataset carregado com 33204 linhas e 103 colunas
+----> Removendo colunas
+----> Dataset final com 33204 linhas e 13 colunas
+----> Ordenando por evento e time_to_tca
+----> Atualizando index (event_id, time_to_tca)
+----> Carregando modelo de: LAST_RUN_FOR_REAL_REAL/n_clusters_3/models/training/resampler.pkl
+----> Reamostrando dados
+----> Salvando dados em LAST_RUN_FOR_REAL_REAL/n_clusters_3/validate/validation/resampled.csv
+----> Removendo resampler
+----> Carregando modelo de: LAST_RUN_FOR_REAL_REAL/n_clusters_3/models/training/scaler.pkl
+----> Salvando dados em LAST_RUN_FOR_REAL_REAL/n_clusters_3/validate/validation/normalized.csv
+----> Removendo scaler
+----> Carregando modelo de: LAST_RUN_FOR_REAL_REAL/n_clusters_3/models/training/km.pkl
+----> Prevendo clusters e classificando novos eventos
+----> Atualizando index (cluster, time_to_tca)
+----> Removendo km
+----> Carregando modelo de: LAST_RUN_FOR_REAL_REAL/n_clusters_3/models/training/cluster_risk_mapping.pkl
+-------------------------------------------------------
+                  Matriz de Confusão                   
+-------------------------------------------------------
+                  Previsto: High  Previsto: Low/Medium
+Real: High                     0                    75
+Real: Low/Medium               0                  2518
+-------------------------------------------------------
+Relatório de Classificação (Precision, Recall, F1-Score)
+-------------------------------------------------------
+              precision    recall  f1-score   support
+
+        High       0.00      0.00      0.00        76
+  Low/Medium       0.97      0.99      0.98      2554
+
+   micro avg       0.97      0.96      0.96      2630
+   macro avg       0.49      0.49      0.49      2630
+weighted avg       0.94      0.96      0.95      2630
+
+----> Salvando dados em LAST_RUN_FOR_REAL_REAL/n_clusters_3/validate/validation/classified_events.csv
+==============================================================================================================
+                                                  Concluído                                                   
+==============================================================================================================
